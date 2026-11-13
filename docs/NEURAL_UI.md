@@ -156,12 +156,10 @@ not changed.
 
 ## Integration-readiness cycle — 2026-11-13
 
-Branch `feature/neural-dial-ui` was inspected clean at commit
-`f69c3cce3ba2cc0a9c7247e059cb79c43f2a78cb`. The branch is pushed and the verified comparison URL is
-<https://github.com/spirokopita/agentic-fold-test/compare/main...feature/neural-dial-ui?expand=1>.
-No existing PR could be queried and no draft PR could be created because GitHub CLI has no authenticated
-session and the browser access host is unavailable. The exact draft body is retained in
-`docs/DRAFT_PR.md`; PR creation is not claimed complete.
+Branch `feature/neural-dial-ui`, remote branch and draft PR #2 were confirmed at checkpoint
+`2f0170b56895fa11f48bada8a699f75393f87fbb` before this cycle.
+Draft PR: <https://github.com/spirokopita/agentic-fold-test/pull/2>. Keep it draft; do not merge.
+The exact current PR body remains mirrored in `docs/DRAFT_PR.md`.
 
 ### Fresh visual evidence and fidelity matrix
 
@@ -223,7 +221,57 @@ Outstanding: authenticated draft PR creation; recovery of all 24 real reference 
 CPU/GPU/allocation/battery/fold testing; owner voice/widget/TalkBack/live-provider/SAF/permission and
 device-automation checks; production signing/migration.
 
-**Exact next engineering action:** authenticate GitHub in an authorised browser or GitHub CLI, create
-the draft PR using `docs/DRAFT_PR.md`, then recover
-`AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip` and perform an asset-by-asset visual/motion
-comparison before any renderer fidelity changes.
+**Exact next engineering action:** connect an authorised physical Fold, run the no-capture harness and
+Perfetto workload against its explicit serial without clearing app data, then recover
+`AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip` from the ChatGPT Library and perform the
+asset-by-asset visual/motion comparison before any fidelity-driven renderer changes.
+
+## Performance optimisation cycle — 2026-11-13
+
+Perfetto was recorded before code changes with the official recorder. The pre-change capture trace
+reported 201 main-thread `Record View#draw()` calls totalling 897.64 ms (4.47 ms average), but
+`postAndWait` totalled 14,321.72 ms (71.25 ms average). Frame timeline entries were dominated by
+SurfaceFlinger CPU deadline misses and buffer stuffing. This separates material emulator/HWUI
+synchronization from Kotlin draw-recording cost. The capture test also draws and compresses seven
+full-size PNGs on the Activity thread, so its historical 40 ms median / 109 ms P95 is not a pure
+renderer benchmark.
+
+A new `exerciseAllStatesWithoutCapture` instrumentation test exercises the identical seven states and
+1.3-second observation windows without bitmap creation or PNG compression. Three pre-change and three
+post-change runs used the same eight-second in-flight `dumpsys gfxinfo` sampling procedure:
+
+| No-capture three-run median | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| CPU frame median | 53 ms | 40 ms | -24.5% |
+| CPU frame P95 | 200 ms | 150 ms | -25.0% |
+| modern deadline-miss rate | 49.07% | 34.87% | -14.20 percentage points |
+| frames rendered in sample | 108 | 151 | +39.8% |
+| GPU frame median | 18 ms | 17 ms | effectively unchanged |
+
+The optimization preserves all lane, sample, strand and glow counts. It precomputes immutable sphere
+latitude sine/cosine terms and tendril envelopes, applies angle-addition identities for per-point
+sphere deformation, and advances evenly spaced tendril phases by recurrence rather than evaluating a
+sine for every sample. Fresh captures were inspected: both blue boundaries, independent white packets,
+sphere deformation, branches, app link, braided peer strands, infection progression, candles and
+simulation labels remain present.
+
+The single post-change traced PNG-capture sample was noisier than the pre-change trace, with
+`postAndWait` averaging 81.56 ms versus 71.25 ms. It is retained as evidence of emulator variability,
+not claimed as an improvement. GPU sentinel buckets of 4950 ms were emitted in some in-flight samples
+and are not treated as literal GPU durations. No 60 FPS claim is made. Full analysis and reproducible
+SQL are in `docs/PERFETTO_NEURAL_ANALYSIS.md`; raw 22.9/20.8 MB traces are retained locally under
+`app/build/reports/perfetto/` and excluded from Git.
+
+Post-change verification on `Medium_Phone` API 35:
+
+- unit tests: 19 passed, 0 failed, 0 skipped;
+- APK and Android-test APK assembly: passed;
+- focused capture workload: 1 passed;
+- no-capture harness: three direct runs passed;
+- complete instrumentation suite: 21 passed, 0 failed, 0 skipped, 0 unfinished in 2m44s;
+- all five PDF tests, rotation/STOP, navigation, fallback/lifecycle coverage and preview isolation remain green.
+
+Only `emulator-5554` was attached; no physical Fold was available. No physical install, permission,
+accessibility, provider or automation action was attempted. The reference archive and its named PNG/GIF
+members were searched in the project, Downloads, Documents and Desktop and remain inaccessible. The
+ChatGPT Library is outside this IDE session, so fidelity remains UNVERIFIED.

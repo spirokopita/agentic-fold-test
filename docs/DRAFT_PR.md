@@ -24,14 +24,18 @@ Preview data is visual-only. It cannot dispatch tools, contact providers or peer
 - Cached condensed typeface and balance-keyed gradient.
 - Removed per-frame temporary weight-array allocation.
 - Hoisted invariant arc bounds out of the packet loop.
+- Precomputed immutable sphere latitude and tendril-envelope trigonometric terms.
+- Replaced repeated shifted-angle calculations with angle-addition identities.
+- Advanced evenly spaced tendril samples with a sine/cosine recurrence while retaining 81 points per strand.
 
 API 35 Medium_Phone measurements:
 
 - Cold launch TotalTime samples: 4370, 1539, 1837, 1948, 1902 ms (median 1902 ms).
 - Warm launch WaitTime samples: 98, 205, 144, 103, 105 ms (median 105 ms).
 - Hot launch WaitTime samples: 26, 34, 27, 21, 30 ms (median 27 ms).
-- During all-seven-state capture: 40 ms median / 109 ms P95 CPU frame time; 16 ms median / 22 ms P95 GPU time; 178/644 modern deadline misses (27.64%).
-- In-flight memory: 59,928 KiB total PSS; 9,332 KiB Java heap PSS; 29,472 KiB native heap PSS.
+- Historical all-state PNG-capture sample: 40 ms median / 109 ms P95 CPU; 16/22 ms GPU; 178/644 deadline misses. PNG drawing/compression occurs on the Activity thread and is not a clean renderer-only benchmark.
+- Three-run no-capture median before → after: CPU median 53 → 40 ms; CPU P95 200 → 150 ms; deadline-miss rate 49.07% → 34.87%; rendered frames 108 → 151; GPU median 18 → 17 ms.
+- Perfetto shows emulator/HWUI `postAndWait` and buffer stuffing dominate the capture workload. A single post-change traced capture was noisier, so it is retained as variability evidence rather than claimed as improvement.
 - No 60 FPS claim is made. Physical Fold profiling and allocation tracing remain outstanding.
 
 ## Rotation-stall diagnosis
@@ -42,8 +46,9 @@ The earlier apparent rotation hang was not reproduced as an application deadlock
 
 - Focused rotation test: 1 passed, 0 failed, 0 skipped, 0 unfinished.
 - Diagnostic full instrumentation: 20 passed, 0 failed, 0 skipped, 0 unfinished.
-- Final post-change instrumentation: 20 passed, 0 failed, 0 skipped, 0 unfinished.
-- Unit tests: 19 passed, 0 failed, 0 skipped.
+- Historical post-allocation-cleanup instrumentation: 20 passed, 0 failed, 0 skipped, 0 unfinished.
+- Current post-trigonometry instrumentation: 21 passed, 0 failed, 0 skipped, 0 unfinished.
+- Current unit tests: 19 passed, 0 failed, 0 skipped.
 - All five PDF instrumentation tests passed, including the corrected runtime-tool registry assertion.
 - Fresh seven-state capture test: 1 passed; captures retained in `docs/neural-evidence/`.
 
@@ -57,4 +62,4 @@ The earlier apparent rotation hang was not reproduced as an application deadlock
 
 ## Evidence
 
-See `docs/NEURAL_UI.md`, `docs/neural-evidence/`, and `app/build/outputs/androidTest-results/connected/debug/`.
+See `docs/NEURAL_UI.md`, `docs/PERFETTO_NEURAL_ANALYSIS.md`, `docs/neural-evidence/`, and `app/build/outputs/androidTest-results/connected/debug/`. Draft PR: https://github.com/spirokopita/agentic-fold-test/pull/2

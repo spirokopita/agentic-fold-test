@@ -22,6 +22,15 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     private val condensedTypeface = Typeface.create("sans-serif-condensed", Typeface.NORMAL)
     private var balanceShader: LinearGradient? = null
     private var shaderBalance = Float.NaN
+    private val sphereLatitude = FloatArray(65) { -PI.toFloat() / 2 + it / 64f * PI.toFloat() }
+    private val sphereSin = FloatArray(65) { sin(sphereLatitude[it]) }
+    private val sphereCos = FloatArray(65) { cos(sphereLatitude[it]) }
+    private val sphereSin3 = FloatArray(65) { sin(sphereLatitude[it] * 3f) }
+    private val sphereCos3 = FloatArray(65) { cos(sphereLatitude[it] * 3f) }
+    private val sphereSin4 = FloatArray(65) { sin(sphereLatitude[it] * 4f) }
+    private val sphereCos4 = FloatArray(65) { cos(sphereLatitude[it] * 4f) }
+    private val tendrilU = FloatArray(81) { it / 80f }
+    private val tendrilEnvelope = FloatArray(81) { sin(tendrilU[it] * PI.toFloat()) }
     private val weights = FloatArray(7).apply { this[0] = 1f }
     private val startWeights = weights.copyOf()
     private var snapshot = controller.snapshot
@@ -93,7 +102,9 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         } else previousFrame = 0
         val fraction = if (ValueAnimator.areAnimatorsEnabled()) ((now - transitionStart) / 1000f).coerceIn(0f, 1f) else 1f
         val eased = fraction * fraction * (3 - 2 * fraction)
-        weights.indices.forEach { weights[it] = startWeights[it] * (1 - eased) + (if (snapshot.state.ordinal == it) eased else 0f) }
+        for (i in weights.indices) {
+            weights[i] = startWeights[i] * (1 - eased) + (if (snapshot.state.ordinal == i) eased else 0f)
+        }
         val save = canvas.save()
         try {
             val side = min(width.toFloat(), height.toFloat())
@@ -147,16 +158,28 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         circle(c, cx, cy, r, shell, 1.4f, alpha * if (r > 300f) detail else 1f)
         if (detail < .001f) return
         // Project independently twisting spherical meridians with depth shading.
+        // Latitude terms are immutable; addition identities avoid four extra trig calls per point.
         val lanes = if (lowPower) 12 else 24
+        val clockSin = sin(clock)
+        val clockCos = cos(clock)
+        val twistClock = clock * .7f
+        val twistClockSin = sin(twistClock)
+        val twistClockCos = cos(twistClock)
         for (lane in 0 until lanes) {
             path.reset()
+            val phase = lane * 2f * PI.toFloat() / lanes + clock * .19f
             for (step in 0..64) {
-                val latitude = -PI.toFloat() / 2 + step / 64f * PI.toFloat()
-                val phase = lane * 2f * PI.toFloat() / lanes + clock * .19f
-                val longitude = phase + twist * sin(latitude * 3 + clock * .7f) * 1.45f
-                val depth = sin(longitude) * cos(latitude)
-                val x = cx + cos(longitude) * cos(latitude) * r * (.95f + twist * .05f * sin(clock + latitude * 4))
-                val y = cy + sin(latitude) * r * (.98f - twist * .12f * cos(longitude + clock))
+                val latitudeSin = sphereSin[step]
+                val latitudeCos = sphereCos[step]
+                val twistWave = sphereSin3[step] * twistClockCos + sphereCos3[step] * twistClockSin
+                val longitude = phase + twist * twistWave * 1.45f
+                val longitudeSin = sin(longitude)
+                val longitudeCos = cos(longitude)
+                val depth = longitudeSin * latitudeCos
+                val radiusWave = sphereSin4[step] * clockCos + sphereCos4[step] * clockSin
+                val x = cx + longitudeCos * latitudeCos * r * (.95f + twist * .05f * radiusWave)
+                val shiftedLongitudeCos = longitudeCos * clockCos - longitudeSin * clockSin
+                val y = cy + latitudeSin * r * (.98f - twist * .12f * shiftedLongitudeCos)
                 if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 if (step % 8 == 0 && depth > 0f) dot(c, x, y, 1.7f, color, alpha * .75f)
             }
@@ -188,20 +211,30 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
                 floatArrayOf(0f, (shaderBalance - .12f).coerceIn(.01f, .85f), shaderBalance.coerceIn(.02f, .98f),
                     (shaderBalance + .12f).coerceIn(.15f, .99f), 1f), Shader.TileMode.CLAMP)
         }
+        val frequency = PI.toFloat() * (4f + conflict * 3f)
+        val phaseStep = frequency / 80f
+        val phaseStepSin = sin(phaseStep)
+        val phaseStepCos = cos(phaseStep)
+        val basePhase = -clock * 1.8f
         for (strand in 0..11) {
             path.reset()
+            var phaseSin = sin(basePhase + strand * .53f)
+            var phaseCos = cos(basePhase + strand * .53f)
+            val amplitude = 20f + strand * 2.8f
             for (step in 0..80) {
-                val u = step / 80f
+                val u = tendrilU[step]
                 val x = -160f + u * 320f
-                val envelope = sin(u * PI.toFloat())
-                val y = -35f + sin(u * PI.toFloat() * (4 + conflict * 3) - clock * 1.8f + strand * .53f) * envelope * (20f + strand * 2.8f)
+                val y = -35f + phaseSin * tendrilEnvelope[step] * amplitude
                 if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                val nextSin = phaseSin * phaseStepCos + phaseCos * phaseStepSin
+                phaseCos = phaseCos * phaseStepCos - phaseSin * phaseStepSin
+                phaseSin = nextSin
             }
             ink.shader = balanceShader
             glow(c, path, Color.WHITE, 1.2f, alpha)
             ink.shader = null
             val u = ((clock * .18f + strand * .083f) % 1f)
-            val y = -35f + sin(u * PI.toFloat() * (4 + conflict * 3) - clock * 1.8f + strand * .53f) * sin(u * PI.toFloat()) * (20f + strand * 2.8f)
+            val y = -35f + sin(u * frequency + basePhase + strand * .53f) * sin(u * PI.toFloat()) * amplitude
             dot(c, -160f + u * 320f, y, 2f, Color.WHITE, alpha)
         }
     }

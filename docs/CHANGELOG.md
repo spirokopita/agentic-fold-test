@@ -1,3 +1,11 @@
+## Unreleased — neural dial performance follow-up (2026-11-13)
+
+- Added a no-capture seven-state performance harness to separate renderer cost from PNG evidence generation.
+- Precomputed immutable sphere/tendril trigonometric terms and replaced per-sample tendril sine evaluation with a recurrence without reducing geometry, strands or glow layers.
+- Recorded official Perfetto before/after traces and reproducible SQL; repeated renderer-only samples improved CPU median and P95 while emulator HWUI buffer stuffing remains material.
+- Post-change API 35 validation: 19 unit tests and 21 instrumentation tests passed, including all five PDF tests, rotation/STOP and both neural workloads.
+- Draft PR #2 remains open. Reference assets, physical Fold profiling, owner integrations and production signing remain pending.
+
 ## v0.7.0 — source-only prototype (2026-10-29)
 
 - Changed product focus from fold-specific dashboard to normal Android application with a tiny 1x1 microphone ON/OFF home widget; dashboard preserved for diagnostics.

@@ -48,4 +48,20 @@ class NeuralRenderingTest {
             onMain(scenario) { assertFalse(it.visualController.snapshot.preview) }
         }
     }
+
+    @Test fun exerciseAllStatesWithoutCapture() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            for (state in VisualState.entries) {
+                onMain(scenario) { it.visualController.preview(state) }
+                Thread.sleep(1300)
+                onMain(scenario) { activity ->
+                    val view = requireNotNull(find(activity.window.decorView))
+                    assertTrue(view.width > 0 && view.height > 0)
+                    assertFalse(view.contentDescription.toString().contains("unavailable"))
+                    assertTrue(view.contentDescription.toString().contains("simulation"))
+                }
+            }
+            onMain(scenario) { it.visualController.endPreview() }
+        }
+    }
 }
