@@ -1,3 +1,11 @@
+## Unreleased — neural visual completion pass (2026-11-14)
+
+- Reconciled original neural requirements in `NEURAL_REQUIREMENTS.md` and regenerated inspected state/transition evidence.
+- Added independent nonuniform thought packets, truthful six-node simulated exploration with growing branches, moving conflict pressure and progressive infection/balance smoothing.
+- Added adaptive cover/phone/inner renderer sizing, stacked narrow controls and automatic legacy fallback after renderer failure.
+- Unified dashboard, notification and accessibility STOP paths through a capability-free visual reset signal; dashboard STOP also stops voice.
+- Verified all 42 directed transition pairs remain visible and retained seven inspected mid-transition captures.
+
 ## Unreleased — neural dial performance follow-up (2026-11-13)
 
 - Added a tested public-event visual adapter for voice listening/processing/speaking and genuine runtime stages without adding inferred peer, security or endpoint telemetry.

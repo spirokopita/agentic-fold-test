@@ -11,7 +11,13 @@ enum class OrbTarget { LOCAL, PEER }
 enum class PeerConnection { DISCONNECTED, PEACEFUL, CONTESTED }
 
 /** Endpoints are supplied by an authorised integration, never inferred from installed packages. */
-data class ApplicationEndpoint(val id: String, val label: String, val available: Boolean, val connected: Boolean)
+data class ApplicationEndpoint(
+    val id: String,
+    val label: String,
+    val available: Boolean,
+    val connected: Boolean,
+    val launchable: Boolean = available
+)
 /** The integration owns the metric's meaning. Null means unavailable, not zero security. */
 data class FirewallMetric(val label: String = "unspecified", val percent: Float? = null, val simulated: Boolean = false)
 data class NeuralSnapshot(
@@ -42,7 +48,7 @@ class NeuralController {
     fun setThoughtActivity(level: Float) = update { it.copy(activity = unit(level)) }
     fun setConnectedApplications(applications: List<ApplicationEndpoint>) = update {
         it.copy(applications = applications.distinctBy { app -> app.id }.take(12).map { app ->
-            app.copy(connected = app.connected && app.available)
+            app.copy(connected = app.connected && app.available && app.launchable)
         })
     }
     fun setPeerAIConnection(connection: PeerConnection) = update { it.copy(peer = connection) }
@@ -63,7 +69,14 @@ class NeuralController {
             peerFirewall = FirewallMetric("demo metric", 61f, true),
             localInfection = if (state == VisualState.LOCAL_INFECTED) .65f else 0f,
             peerInfection = if (state == VisualState.PEER_TAKEN_OVER) .65f else 0f,
-            applications = listOf(ApplicationEndpoint("demo", "demo endpoint", true, true)))
+            applications = listOf(
+                ApplicationEndpoint("sim-notes", "sim notes", true, true),
+                ApplicationEndpoint("sim-camera", "sim camera", true, false),
+                ApplicationEndpoint("sim-files", "sim files", true, true),
+                ApplicationEndpoint("sim-maps", "sim maps", true, false),
+                ApplicationEndpoint("sim-locked", "sim locked", true, false, launchable = false),
+                ApplicationEndpoint("sim-absent", "sim absent", false, false, launchable = false),
+            ))
     }
     fun endPreview() = update { NeuralSnapshot() }
     companion object { private fun unit(v: Float) = if (v.isFinite()) v.coerceIn(0f, 1f) else 0f }

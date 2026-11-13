@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +39,18 @@ class DashboardSmokeTest {
                 assertEquals(com.agentfold.app.ui.neural.VisualState.THINKING_FIELD,
                     activity.visualController.snapshot.state)
                 assertEquals(0f, activity.visualController.snapshot.activity)
+            }
+        }
+    }
+    @Test fun processStopSignalExitsDevelopmentPreview() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { it.visualController.preview(com.agentfold.app.ui.neural.VisualState.CONFLICT) }
+            VisualStopSignal.signal()
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            scenario.onActivity {
+                assertFalse(it.visualController.snapshot.preview)
+                assertEquals(com.agentfold.app.ui.neural.VisualState.THINKING_FIELD,
+                    it.visualController.snapshot.state)
             }
         }
     }

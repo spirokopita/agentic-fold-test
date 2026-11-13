@@ -9,6 +9,17 @@ import com.agentfold.app.ui.neural.VisualState
  */
 data class LiveVisualSignal(val state: VisualState, val activity: Float)
 
+/** Process-local visual reset notification. It carries no capability or operational data. */
+object VisualStopSignal {
+    @Volatile var generation: Long = 0L
+        private set
+
+    @Synchronized fun signal() {
+        generation++
+        SessionStore.notifyChanged()
+    }
+}
+
 fun liveVisualSignal(stage: ActivityStage, voicePhase: VoiceVisualPhase): LiveVisualSignal = when {
     stage.busy -> LiveVisualSignal(VisualState.INTERNAL_THINKING, .8f)
     voicePhase == VoiceVisualPhase.PROCESSING -> LiveVisualSignal(VisualState.INTERNAL_THINKING, .65f)

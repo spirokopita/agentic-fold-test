@@ -15,6 +15,7 @@ import kotlin.math.*
 
 /** Hardware-accelerated vector scene in a unit circular viewport. No prerecorded frames. */
 class NeuralDialView(context: Context, val controller: NeuralController) : View(context) {
+    var onRendererFailure: (() -> Unit)? = null
     private val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val path = Path()
     private val bounds = RectF()
@@ -31,6 +32,13 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     private val sphereCos4 = FloatArray(65) { cos(sphereLatitude[it] * 4f) }
     private val tendrilU = FloatArray(81) { it / 80f }
     private val tendrilEnvelope = FloatArray(81) { sin(tendrilU[it] * PI.toFloat()) }
+    private val packetPhase = FloatArray(32) { i -> i * 11.25f + sin(i * 2.173f) * 5.5f + (i % 3) * 1.7f }
+    private val packetSpeed = FloatArray(32) { i ->
+        val magnitude = 3.4f + (i * 37 % 17) * .47f
+        if (i % 6 == 0) -magnitude else magnitude
+    }
+    private val packetSweep = FloatArray(32) { i -> 1.7f + (i * 29 % 13) * .42f }
+    private val packetRadius = FloatArray(32) { i -> 363f + (i * 7 % 4) * 4.2f }
     private val weights = FloatArray(7).apply { this[0] = 1f }
     private val startWeights = weights.copyOf()
     private var snapshot = controller.snapshot
@@ -41,7 +49,12 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     private var active = false
     private var scheduled = false
     private var failed = false
+    private var failureReported = false
     private var lowPower = false
+    private var renderedActivity = 0f
+    private var renderedBalance = .5f
+    private var renderedLocalInfection = 0f
+    private var renderedPeerInfection = 0f
     private val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     private val listener: (NeuralSnapshot) -> Unit = { next ->
         post {
@@ -97,7 +110,12 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         super.onDraw(canvas)
         val now = SystemClock.uptimeMillis()
         if (canAnimate()) {
-            if (previousFrame != 0L) clock += minOf((now - previousFrame) / 1000f, .05f)
+            val dt = if (previousFrame == 0L) 0f else minOf((now - previousFrame) / 1000f, .05f)
+            clock += dt
+            renderedActivity = if (snapshot.activity == 0f) 0f else follow(renderedActivity, snapshot.activity, dt, 7f)
+            renderedBalance = follow(renderedBalance, snapshot.balance, dt, 4f)
+            renderedLocalInfection = follow(renderedLocalInfection, snapshot.localInfection, dt, 3.5f)
+            renderedPeerInfection = follow(renderedPeerInfection, snapshot.peerInfection, dt, 3.5f)
             previousFrame = now
         } else previousFrame = 0
         val fraction = if (ValueAnimator.areAnimatorsEnabled()) ((now - transitionStart) / 1000f).coerceIn(0f, 1f) else 1f
@@ -113,8 +131,12 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
             if (failed) label(canvas, "visual unavailable · use controls", 0f, 0f, Color.WHITE, 24f)
             else scene(canvas)
         } catch (_: RuntimeException) {
-            failed = true // Functional controls are outside this View and remain usable.
-            contentDescription = "Visual renderer unavailable. Use activity fallback and functional controls."
+            failed = true
+            contentDescription = "Visual renderer unavailable. Activity fallback is being restored."
+            if (!failureReported) {
+                failureReported = true
+                post { onRendererFailure?.invoke() }
+            }
             postInvalidate()
         } finally { canvas.restoreToCount(save) }
         schedule()
@@ -125,9 +147,9 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         val localX = -225f * pair
         val localRadius = 326f * (1 - pair - explore) + 160f * pair + 28f * explore
         val localY = -35f * pair
-        orb(c, localX, localY, localRadius, BLUE, weights[1], snapshot.localInfection * weights[5], 1f, weights[1] + pair)
+        orb(c, localX, localY, localRadius, BLUE, weights[1], renderedLocalInfection * weights[5], 1f, weights[1] + pair)
         if (pair > .001f) {
-            orb(c, 225f, -35f, 160f, RED, .25f, snapshot.peerInfection * weights[6], pair)
+            orb(c, 225f, -35f, 160f, RED, .25f, renderedPeerInfection * weights[6], pair)
             tendrils(c, pair)
             candle(c, -300f, 265f, BLUE, snapshot.localFirewall, pair)
             candle(c, 300f, 265f, RED, snapshot.peerFirewall, pair)
@@ -136,12 +158,13 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         if (field > .001f) {
             circle(c, 0f, 0f, 354f, BLUE, 1.3f, field)
             circle(c, 0f, 0f, 386f, BLUE, 1.3f, field)
-            bounds.set(-370f, -370f, 370f, 370f)
-            for (i in 0..31) {
-                val speed = 7f + (i % 7) * .51f
-                val angle = i * 11.25f + clock * speed * (.45f + snapshot.activity)
-                ink.style = Paint.Style.STROKE; ink.strokeWidth = 13f; ink.color = Color.WHITE; ink.alpha = (field * 225).toInt()
-                c.drawArc(bounds, angle, 2.5f + i % 5, false, ink)
+            for (i in packetPhase.indices) {
+                val radius = packetRadius[i]
+                bounds.set(-radius, -radius, radius, radius)
+                val angle = packetPhase[i] + clock * packetSpeed[i] * (.42f + renderedActivity)
+                ink.style = Paint.Style.STROKE; ink.strokeWidth = 11.5f; ink.color = Color.WHITE
+                ink.alpha = (field * (190 + (i * 31 % 66))).toInt().coerceIn(0, 255)
+                c.drawArc(bounds, angle, packetSweep[i], false, ink)
             }
         }
         if (explore > .001f) applications(c, explore)
@@ -183,8 +206,9 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
                 if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 if (step % 8 == 0 && depth > 0f) dot(c, x, y, 1.7f, color, alpha * .75f)
             }
-            val inner = lane.toFloat() / lanes < infection
-            glow(c, path, if (inner) (if (color == BLUE) RED else BLUE) else shell, .8f, alpha * detail * (.28f + .55f * (lane % 4) / 3f))
+            val invasion = spread(infection, lane.toFloat() / (lanes - 1).coerceAtLeast(1))
+            val neuralColor = blend(shell, if (color == BLUE) RED else BLUE, invasion)
+            glow(c, path, neuralColor, .8f, alpha * detail * (.28f + .55f * (lane % 4) / 3f))
         }
         // Branched internal neural trees, clipped inside the identity shell.
         val save = c.save()
@@ -192,7 +216,7 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         for (i in 0..17) {
             val a = i * 2.39996f + sin(clock * .35f + i) * .08f
             val x = cx + cos(a) * r * .89f; val y = cy + sin(a) * r * .89f
-            val neuralColor = if (i / 18f < infection) (if (color == BLUE) RED else BLUE) else shell
+            val neuralColor = blend(shell, if (color == BLUE) RED else BLUE, spread(infection, i / 17f))
             path.reset(); path.moveTo(cx, cy)
             path.cubicTo(cx + sin(i + clock * .3f) * r * .5f, cy - r * .3f, x - cos(a + .7f) * r * .4f, y - sin(a) * r * .3f, x, y)
             glow(c, path, neuralColor, 1f, alpha * detail * .65f)
@@ -204,8 +228,9 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     }
     private fun tendrils(c: Canvas, alpha: Float) {
         val conflict = weights[4] / alpha.coerceAtLeast(.001f)
-        if (balanceShader == null || shaderBalance != snapshot.balance) {
-            shaderBalance = snapshot.balance
+        val balanceKey = (renderedBalance * 100f).roundToInt() / 100f
+        if (balanceShader == null || shaderBalance != balanceKey) {
+            shaderBalance = balanceKey
             balanceShader = LinearGradient(-160f, 0f, 160f, 0f,
                 intArrayOf(BLUE, BLUE, 0xffb54bff.toInt(), RED, RED),
                 floatArrayOf(0f, (shaderBalance - .12f).coerceIn(.01f, .85f), shaderBalance.coerceIn(.02f, .98f),
@@ -237,22 +262,65 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
             val y = -35f + sin(u * frequency + basePhase + strand * .53f) * sin(u * PI.toFloat()) * amplitude
             dot(c, -160f + u * 320f, y, 2f, Color.WHITE, alpha)
         }
+        // Moving local pressure makes conflict a contest, not merely a static colour ramp.
+        val pressureAlpha = alpha * (.32f + conflict * .68f)
+        for (i in 0 until 18) {
+            val direction = if (i % 2 == 0) 1f else -1f
+            val u = ((clock * (.12f + (i % 4) * .018f) * direction + i / 18f) % 1f + 1f) % 1f
+            val wave = sin(u * frequency + basePhase + i * .53f) * sin(u * PI.toFloat())
+            val y = -35f + wave * (22f + (i % 6) * 4f)
+            val contest = ((u - renderedBalance) * 3.2f + sin(clock * 1.4f + i) * .22f * conflict).coerceIn(-1f, 1f)
+            val packetColor = blend(BLUE, RED, ((contest + 1f) * .5f).coerceIn(0f, 1f))
+            dot(c, -160f + u * 320f, y, 2.4f + conflict * 1.6f, packetColor, pressureAlpha)
+        }
+        dot(c, -160f, -35f, 4f + conflict * 2f, BLUE, pressureAlpha)
+        dot(c, 160f, -35f, 4f + conflict * 2f, RED, pressureAlpha)
     }
     private fun applications(c: Canvas, alpha: Float) {
         val apps = snapshot.applications
         if (apps.isEmpty()) { label(c, "no registered app endpoints", 0f, 130f, Color.WHITE, 22f); return }
         apps.forEachIndexed { i, app ->
             val a = i * PI.toFloat() * 2 / apps.size - PI.toFloat() / 2
-            val x = cos(a) * 350; val y = sin(a) * 350
-            if (app.available && app.connected) {
+            val x = cos(a) * 350f; val y = sin(a) * 350f
+            if (app.connected) {
+                val growth = smooth(((clock * .23f + i * .37f) % 1f * 1.55f).coerceIn(0f, 1f))
                 path.reset(); path.moveTo(0f, 0f)
-                path.cubicTo(x * .2f + sin(clock + i) * 60, y * .5f, x * .75f, y * .45f, x, y)
+                val steps = (growth * 24).roundToInt().coerceAtLeast(1)
+                for (step in 1..steps) {
+                    val u = step / 24f
+                    val one = 1f - u
+                    val c1x = x * .2f + sin(clock + i) * 55f
+                    val c1y = y * .48f
+                    val c2x = x * .73f
+                    val c2y = y * .44f + cos(clock * .7f + i) * 24f
+                    val px = one * one * one * 0f + 3f * one * one * u * c1x + 3f * one * u * u * c2x + u * u * u * x
+                    val py = 3f * one * one * u * c1y + 3f * one * u * u * c2y + u * u * u * y
+                    path.lineTo(px, py)
+                }
                 glow(c, path, BLUE, 1.2f, alpha)
-                path.moveTo(x * .6f, y * .6f); path.quadTo(x * .7f + 30, y * .7f - 35, x, y)
-                glow(c, path, BLUE, .7f, alpha * .5f)
+                if (growth > .58f) {
+                    val bx = x * .62f; val by = y * .62f
+                    path.reset(); path.moveTo(bx, by)
+                    path.quadTo(x * .75f + sin(i.toFloat()) * 34f, y * .72f - 30f, x, y)
+                    glow(c, path, BLUE, .7f, alpha * smooth((growth - .58f) / .42f) * .6f)
+                }
+                dot(c, x * growth, y * growth, 2.8f, Color.WHITE, alpha)
             }
-            circle(c, x, y, 18f, if (app.available) BLUE else Color.GRAY, 1f, alpha)
-            label(c, app.label.take(20), x * .9f, y * .9f + 40, Color.WHITE, 20f)
+            val nodeColor = when {
+                app.connected -> BLUE
+                app.launchable -> 0xff4f8da8.toInt()
+                app.available -> 0xff31505e.toInt()
+                else -> Color.DKGRAY
+            }
+            circle(c, x, y, if (app.connected) 20f else 15f, nodeColor, if (app.connected) 1.3f else .8f, alpha)
+            val status = when {
+                app.connected -> "integrated"
+                app.launchable -> "launchable"
+                app.available -> "installed"
+                else -> "unavailable"
+            }
+            label(c, app.label.take(18), x * .87f, y * .87f + 30f, Color.WHITE, 17f)
+            label(c, status, x * .87f, y * .87f + 50f, nodeColor, 14f)
         }
     }
     private fun candle(c: Canvas, x: Float, y: Float, color: Int, metric: FirewallMetric, alpha: Float) {
@@ -285,6 +353,13 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     }
     companion object {
         val BLUE = 0xff00bbff.toInt(); val RED = 0xffff304e.toInt()
+        private fun follow(current: Float, target: Float, dt: Float, response: Float): Float =
+            current + (target - current) * (1f - exp(-response * dt))
+        private fun smooth(value: Float): Float {
+            val v = value.coerceIn(0f, 1f)
+            return v * v * (3f - 2f * v)
+        }
+        private fun spread(amount: Float, position: Float): Float = smooth((amount * 1.18f - position) * 4f + .5f)
         private fun blend(a: Int, b: Int, f: Float) = Color.rgb(
             (Color.red(a) * (1 - f) + Color.red(b) * f).toInt(),
             (Color.green(a) * (1 - f) + Color.green(b) * f).toInt(),

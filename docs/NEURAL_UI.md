@@ -338,3 +338,85 @@ Reference fidelity remains UNVERIFIED because the actual 16 PNG and 8 GIF assets
 supplied or accessible. Owner-driven microphone permission/recognition, widget, TalkBack/accessibility,
 live provider, SAF export, sensitive permissions, device automation, owner signing and migration
 checks also remain pending.
+
+## Requirement reconciliation and visual completion pass — 2026-11-14
+
+The requirement-by-requirement source/evidence ledger is now
+`docs/NEURAL_REQUIREMENTS.md`. It explicitly separates verified emulator behaviour, implemented but
+unverified motion, incomplete real integrations, reference blockers and physical-device blockers.
+
+Fresh source and rendered-output inspection found four concrete deficiencies: uniform thinking-field
+spacing, a single-endpoint exploration preview, conflict dominated by a static gradient, and immediate
+infection/balance parameter jumps. The repaired renderer now:
+
+- uses cached independent phase, speed, sweep and radial-lane data for 32 thought packets, including
+  counter-moving packets;
+- presents six explicitly simulated peripheral endpoints with unavailable, installed, launchable and
+  integrated truth states; only integrated endpoints grow connections;
+- grows sampled cubic neural paths and secondary branches progressively without adding unbounded scene
+  complexity;
+- overlays bounded moving blue/purple/red pressure packets on the conflict braid;
+- smoothly follows activity, colour-balance and infection parameters while preserving the cached
+  trigonometric sphere/tendril work;
+- blends infection influence progressively across meridians and neural branches while retaining the
+  local blue or peer red shell identity.
+
+The seven state captures in `docs/neural-evidence/` were regenerated and visually inspected.
+`external_exploration.png` now shows the endpoint ring and two selective integrations;
+`conflict.png` shows local moving pressure colours; the two infection captures preserve exterior
+identity while the opposing colour spreads internally. Thinking-field packet geometry is visibly
+nonuniform. Static frames demonstrate structure, not reference motion fidelity.
+
+A deterministic focused instrumentation harness sampled all 42 directed state pairs at 220 ms into
+their transitions. Every pair retained visible geometry and no renderer failure. A rapid seven-state
+interruption sequence settled on the final requested state. Seven representative frames were retained
+under `docs/neural-evidence/transitions/` and inspected; they show blended geometry rather than blank
+resets. The focused test passed in 71.789 seconds.
+
+Responsive inspection used reversible emulator display overrides:
+
+- 904×2316 cover-like: circular renderer remained readable, visual controls stacked vertically, STOP
+  remained fixed and the scrollable operational content stayed reachable;
+- 2208×1840 inner-like: the adaptive two-pane workspace displayed an enlarged circular renderer beside
+  the mission pane and kept STOP fixed;
+- the emulator was restored to its physical 1080×2400 size afterwards.
+
+Renderer height now adapts to narrow, conventional and expanded window widths. A runtime renderer
+exception posts a one-shot callback that selects the existing legacy renderer; the manual switch
+remains separate. Automatic failure recovery is source-implemented but not fault-injection verified.
+
+STOP consistency was also repaired. A process-local generation signal carries no capability or task
+data; dashboard, notification and accessibility STOP paths publish it. A foreground Activity exits
+development preview on the next main-thread notification, and dashboard STOP also stops the voice
+service before runtime/accessibility cancellation. Focused notification-style STOP instrumentation
+passed 1/1.
+
+Fresh checks in this pass:
+
+- `NeuralControllerTest`: 4 passed, covering endpoint truth, preview reset, the full independent
+  control API and invalid-input clamping;
+- seven-state capture: 1 passed through Gradle/UTP and 1 passed through direct instrumentation;
+- all-pairs transition/rapid-interruption test: 1 passed;
+- notification-style visual STOP reset: 1 passed;
+- debug APK and Android-test APK assembly: passed.
+
+The complete unchanged suites were not rerun; the prior 21/21 instrumentation and 19/19 unit counts
+remain historical evidence. One in-flight no-capture sample after the detail pass reported 316 frames,
+85 ms CPU median, 150 ms P95, 213/316 deadline misses (67.41%), and 15/22 ms GPU median/P90. The GPU
+again emitted 4950 ms sentinel buckets. This single emulator sample is noisier than the earlier
+three-run median and is recorded as a possible regression/variability signal, not proof of improvement
+or a reason to remove required detail. Representative physical profiling remains required.
+
+### Reference access boundary
+
+`assets/ai-ui/chat-2026-11-13/README.md` remains a text manifest only. This session exposes no
+ChatGPT Library file connector or attachment-download API. Windows automation policy explicitly
+prohibits automating the ChatGPT desktop app, so the visible app cannot be used as a workaround.
+No original binary was inspected. Required transfer: download or attach
+`AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip` into this project-accessible environment, then
+verify its 16 PNG and 8 GIF inventory and compare representative GIF frames and all state images.
+Reference fidelity remains UNVERIFIED.
+
+Physical Fold posture/performance, owner voice/widget/TalkBack/live-provider/SAF/permission/automation,
+and reference fidelity remain incomplete. The overhaul must remain draft until those gates are
+actually exercised.

@@ -7,6 +7,7 @@ import android.content.Intent
 /** Explicit immutable notification action; not exported to other applications. */
 class StopReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        VisualStopSignal.signal()
         context.stopService(Intent(context, VoiceChatService::class.java))
         val service = AgentAccessibilityService.instance
         if (service != null) service.stopSession()

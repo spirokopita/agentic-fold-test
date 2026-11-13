@@ -49,6 +49,7 @@ class MainActivity : Activity() {
     private lateinit var workspace: AdaptiveWorkspace
     private val agent by lazy { AgentRuntime.get(this) }
     private val refresh: () -> Unit = { refreshStatus() }
+    private var observedVisualStop = VisualStopSignal.generation
     private val pickRequest = 101
     private val exportRequest = 102
     private val reportExportRequest = 104
@@ -62,6 +63,13 @@ class MainActivity : Activity() {
             setBackgroundColor(AgentTheme.background)
         }
         val version = packageManager.getPackageInfo(packageName, 0).versionName
+        val windowWidthDp = resources.configuration.screenWidthDp
+        val windowHeightDp = resources.configuration.screenHeightDp
+        val neuralHeightDp = when {
+            windowWidthDp < 360 -> 320
+            windowWidthDp >= 600 -> minOf(560, (windowHeightDp - 220).coerceAtLeast(380))
+            else -> 380
+        }
         status = text("Checking permissions...", 12f, AgentTheme.muted).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
         val network = section("01 / LIVE ACTIVITY")
         networkView = ActivityNetworkView(this)
@@ -93,6 +101,7 @@ class MainActivity : Activity() {
         selectLegacy(runCatching {
             ActivityNetworkView.Presentation.valueOf(visuals.getString("activity_view", "SIGNAL") ?: "SIGNAL")
         }.getOrDefault(ActivityNetworkView.Presentation.SIGNAL))
+        neuralView.onRendererFailure = { showFallback(true) }
         val visualSwitch = button("neural / fallback", { showFallback(!fallback) })
         visualSwitch.contentDescription = "Switch neural and legacy activity renderer"
         val previewButton = button("development preview", {
@@ -103,13 +112,20 @@ class MainActivity : Activity() {
                     else visualController.preview(VisualState.entries[which - 1])
                 }.setNegativeButton("close", null).show()
         })
-        network.addView(neuralView, LinearLayout.LayoutParams(-1, dp(380)))
+        network.addView(neuralView, LinearLayout.LayoutParams(-1, dp(neuralHeightDp)))
         network.addView(legacyTabs)
         showFallback(fallback)
         network.addView(networkView, LinearLayout.LayoutParams(-1, dp(280)))
-        val visualControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        visualControls.addView(visualSwitch, LinearLayout.LayoutParams(0, -2, 1f))
-        visualControls.addView(previewButton, LinearLayout.LayoutParams(0, -2, 1f))
+        val visualControls = LinearLayout(this).apply {
+            orientation = if (windowWidthDp < 360) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        }
+        if (windowWidthDp < 360) {
+            visualControls.addView(visualSwitch, LinearLayout.LayoutParams(-1, -2))
+            visualControls.addView(previewButton, LinearLayout.LayoutParams(-1, -2))
+        } else {
+            visualControls.addView(visualSwitch, LinearLayout.LayoutParams(0, -2, 1f))
+            visualControls.addView(previewButton, LinearLayout.LayoutParams(0, -2, 1f))
+        }
         network.addView(visualControls)
         liveObjective = text("No task running", 15f, AgentTheme.text)
         liveSummary = text("Ready · owner in control", 12f, AgentTheme.muted)
@@ -383,7 +399,9 @@ class MainActivity : Activity() {
 
     private fun stopWork() {
         // STOP also exits visual simulations so no active-looking scene survives revocation.
+        VisualStopSignal.signal()
         visualController.endPreview()
+        stopService(Intent(this, VoiceChatService::class.java))
         val service = AgentAccessibilityService.instance
         if (service != null) service.stopSession() else agent.cancel()
     }
@@ -417,6 +435,10 @@ class MainActivity : Activity() {
     }
     private fun refreshStatus() {
         if (!::status.isInitialized) return
+        if (observedVisualStop != VisualStopSignal.generation) {
+            observedVisualStop = VisualStopSignal.generation
+            visualController.endPreview()
+        }
         val svc = AgentAccessibilityService.instance
         val snapshot = agent.activity
         val deviceStatus = when {

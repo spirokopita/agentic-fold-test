@@ -91,3 +91,31 @@ Signer certificate SHA-256:
 The package updates only an installation with the same recovery application ID, signing certificate
 and compatible version code. It does not replace legacy `com.agentfold.app` or owner-signed builds.
 Physical Fold, real reference assets and owner-dependent integration checks remain outstanding.
+
+## Requirement reconciliation and visual completion pass
+
+A source/render audit found and repaired concrete gaps beyond the earlier capture check:
+
+- independently varied thought-packet phase, speed, length and radial spacing;
+- six explicitly simulated endpoint nodes with unavailable/installed/launchable/integrated states and
+  selectively growing branches only for integrated endpoints;
+- moving local conflict-pressure packets over the retained blue/purple/red braid;
+- progressive smoothed infection and colour-balance inputs;
+- adaptive cover/phone/inner renderer height and narrow stacked controls;
+- automatic legacy fallback callback after renderer failure;
+- process-local visual reset across dashboard, notification and accessibility STOP paths.
+
+Fresh seven-state captures and seven representative mid-transition frames are committed under
+`docs/neural-evidence/`. All 42 directed state-pair transitions retained visible geometry; rapid
+interruptions settled on the final requested state. Focused checks passed: 4 controller unit tests,
+seven-state capture, all-pairs transition/interruptions, notification-style STOP reset, and debug/test
+APK assembly. Complete suites were not repeated; historical 21/21 instrumentation and 19/19 unit
+results remain unchanged evidence.
+
+Cover-like 904×2316 and inner-like 2208×1840 emulator layouts were inspected, then the emulator was
+restored to 1080×2400. These are layout checks, not physical Fold validation.
+
+The original archive is still inaccessible: this session has no ChatGPT Library file API and policy
+prohibits automating the ChatGPT desktop app. The exact required transfer is
+`AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip`. Reference fidelity, physical Fold profiling and
+owner integrations remain outstanding; keep this PR draft.

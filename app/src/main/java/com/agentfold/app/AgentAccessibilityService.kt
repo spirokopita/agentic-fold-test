@@ -139,7 +139,10 @@ class AgentAccessibilityService : AccessibilityService() {
         val hadWork = controlActive || session.busy
         session.stop() // Revoke before dismissing UI or running callbacks.
         // Network disconnection may take time. Invalidate device input first.
-        if (reason.startsWith("STOP")) com.agentfold.app.agent.AgentRuntime.peek()?.cancel(reason)
+        if (reason.startsWith("STOP")) {
+            VisualStopSignal.signal()
+            com.agentfold.app.agent.AgentRuntime.peek()?.cancel(reason)
+        }
         main.removeCallbacks(expiry)
         verification?.let(main::removeCallbacks); verification = null
         approvalExpiry?.let(main::removeCallbacks); approvalExpiry = null
