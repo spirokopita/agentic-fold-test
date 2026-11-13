@@ -68,11 +68,17 @@ and 8 GIFs, organise them under assets/ai-ui/chat-2026-11-13, and compare emulat
 1. Source recovery and inspection: completed; preserve the original source ZIP in Git history.
 2. Rendering foundation and seven states: source implemented, compilation and appearance pending.
 3. Transition engine and Activity integration: source implemented; native fallback retained.
-4. Tests: controller boundary tests and seven-state Android capture test added; not yet run.
+4. Tests: all three controller boundary tests passed using Kotlin 2.0.21 and JUnit 4.13.2.
+   The renderer and controller also compiled directly against the installed Android 37.0 API.
+   This is not an APK build or Android runtime verification. Seven-state capture tests have not run.
 5. Local environment: Android Studio installed by owner; setup wizard downloading SDK components.
    Bundled Java is 25.0.4. Existing Minecraft Java 17.0.8 can launch Gradle 8.14.3, but is not a
    conventional full JDK installation. Use a dedicated supported JDK for repeatable builds.
-6. Build/regression/visual evidence: pending. Never claim an APK, FPS result or comparison exists.
+6. Full build/regression/visual evidence: pending. Gradle starts but its daemon connection is
+   blocked in this execution environment. Direct Kotlin compilation works. Never claim an APK,
+   FPS result or reference comparison exists. Added a Gradle wrapper pinned to distribution
+   8.11.1 (bootstrap JAR from cached official Gradle 8.14.3, Apache license included), plus a
+   dedicated GitHub validation workflow with compilation, lint, tests and emulator captures.
 7. Next: finish SDK setup, install Android platform 35 and Build Tools 35.0.0, select JDK 17,
    run testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest, then run instrumentation.
 8. Pull neural-evidence PNGs from app external files after NeuralRenderingTest, inspect each,
@@ -97,3 +103,4 @@ External exploration has no live endpoint adapter yet, so live mode never invent
 Conflict colour pressure is controllable but is not tied to real peer telemetry. Preview selection
 is a native dialog outside the circular scene. Functional task panels remain available for safety
 and compatibility rather than being rewritten as a new app shell.
+
