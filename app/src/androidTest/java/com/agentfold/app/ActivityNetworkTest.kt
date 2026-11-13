@@ -51,7 +51,12 @@ class ActivityNetworkTest {
     private fun onLiveActivity(scenario: ActivityScenario<MainActivity>, action: (MainActivity) -> Unit) {
         // ActivityScenario.onActivity also waits for idle when called off the main thread.
         // Run its action on the main thread so a continuously animated view need not become idle.
-        InstrumentationRegistry.getInstrumentation().runOnMainSync { scenario.onActivity { action(it) } }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { scenario.onActivity { activity ->
+            val children = views(activity.window.decorView)
+            if (children.filterIsInstance<ActivityNetworkView>().single().visibility == View.GONE)
+                children.filterIsInstance<Button>().single { it.contentDescription == "Switch neural and legacy activity renderer" }.performClick()
+            action(activity)
+        } }
     }
 
     @Test fun liveModelActivityAndStopComeFromTheRuntime() {

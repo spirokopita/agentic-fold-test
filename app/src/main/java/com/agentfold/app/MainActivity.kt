@@ -67,13 +67,34 @@ class MainActivity : Activity() {
         networkView = ActivityNetworkView(this)
         neuralView = NeuralDialView(this, visualController)
         network.background = null
-        val visualSwitch = button("neural / fallback", {})
-        var fallback = false
-        visualSwitch.setOnClickListener {
-            fallback = !fallback
-            networkView.visibility = if (fallback) View.VISIBLE else View.GONE
-            neuralView.visibility = if (fallback) View.GONE else View.VISIBLE
+        val visuals = getSharedPreferences("workspace_visuals", MODE_PRIVATE)
+        var fallback = savedInstanceState?.getBoolean("neural_fallback", false) ?: false
+        val legacyTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val signalTab = button("signal", {})
+        val networkTab = button("network", {})
+        fun showFallback(value: Boolean) {
+            fallback = value
+            networkView.visibility = if (value) View.VISIBLE else View.GONE
+            neuralView.visibility = if (value) View.GONE else View.VISIBLE
+            legacyTabs.visibility = if (value) View.VISIBLE else View.GONE
         }
+        fun selectLegacy(value: ActivityNetworkView.Presentation) {
+            networkView.setPresentation(value)
+            visuals.edit().putString("activity_view", value.name).apply()
+            signalTab.isSelected = value == ActivityNetworkView.Presentation.SIGNAL
+            networkTab.isSelected = value == ActivityNetworkView.Presentation.NETWORK
+            signalTab.contentDescription = "Signal activity view"
+            networkTab.contentDescription = "Network activity view"
+        }
+        signalTab.setOnClickListener { selectLegacy(ActivityNetworkView.Presentation.SIGNAL); showFallback(true) }
+        networkTab.setOnClickListener { selectLegacy(ActivityNetworkView.Presentation.NETWORK); showFallback(true) }
+        legacyTabs.addView(signalTab, LinearLayout.LayoutParams(0, -2, 1f))
+        legacyTabs.addView(networkTab, LinearLayout.LayoutParams(0, -2, 1f))
+        selectLegacy(runCatching {
+            ActivityNetworkView.Presentation.valueOf(visuals.getString("activity_view", "SIGNAL") ?: "SIGNAL")
+        }.getOrDefault(ActivityNetworkView.Presentation.SIGNAL))
+        val visualSwitch = button("neural / fallback", { showFallback(!fallback) })
+        visualSwitch.contentDescription = "Switch neural and legacy activity renderer"
         val previewButton = button("development preview", {
             val labels = arrayOf("return to live activity") + VisualState.entries.map { it.label }.toTypedArray()
             AlertDialog.Builder(this).setTitle("visual simulation — no network actions")
@@ -83,7 +104,8 @@ class MainActivity : Activity() {
                 }.setNegativeButton("close", null).show()
         })
         network.addView(neuralView, LinearLayout.LayoutParams(-1, dp(380)))
-        networkView.visibility = View.GONE
+        network.addView(legacyTabs)
+        showFallback(fallback)
         network.addView(networkView, LinearLayout.LayoutParams(-1, dp(280)))
         val visualControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         visualControls.addView(visualSwitch, LinearLayout.LayoutParams(0, -2, 1f))
@@ -355,6 +377,7 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("workspace_tab", workspace.selection.name)
+        outState.putBoolean("neural_fallback", networkView.visibility == View.VISIBLE)
         super.onSaveInstanceState(outState)
     }
 

@@ -22,13 +22,15 @@ class NeuralRenderingTest {
         if (view is ViewGroup) for (i in 0 until view.childCount) find(view.getChildAt(i))?.let { return it }
         return null
     }
+    private fun onMain(scenario: ActivityScenario<MainActivity>, action: (MainActivity) -> Unit) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { scenario.onActivity { action(it) } }
+    }
     @Test fun captureAllStatesAndKeepSimulationExplicit() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             for (state in VisualState.entries) {
-                scenario.onActivity { it.visualController.preview(state) }
+                onMain(scenario) { it.visualController.preview(state) }
                 Thread.sleep(1300) // Let the real frame clock complete the one-second morph.
-                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-                scenario.onActivity { activity ->
+                onMain(scenario) { activity ->
                     val view = requireNotNull(find(activity.window.decorView))
                     assertTrue(view.width > 0 && view.height > 0)
                     val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
@@ -41,9 +43,9 @@ class NeuralRenderingTest {
                     bitmap.recycle()
                 }
             }
-            scenario.onActivity { it.visualController.endPreview() }
+            onMain(scenario) { it.visualController.endPreview() }
             scenario.recreate()
-            scenario.onActivity { assertFalse(it.visualController.snapshot.preview) }
+            onMain(scenario) { assertFalse(it.visualController.snapshot.preview) }
         }
     }
 }
