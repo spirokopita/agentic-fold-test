@@ -5,6 +5,8 @@
 - Added adaptive cover/phone/inner renderer sizing, stacked narrow controls and automatic legacy fallback after renderer failure.
 - Unified dashboard, notification and accessibility STOP paths through a capability-free visual reset signal; dashboard STOP also stops voice.
 - Verified all 42 directed transition pairs remain visible and retained seven inspected mid-transition captures.
+- Fault-injection verified that a renderer exception automatically restores the legacy activity view while STOP remains visible.
+- Added and inspected nine 0/50/100 control captures proving visible conflict-balance and bidirectional infection progression while retaining local/peer shell identity.
 
 ## Unreleased — neural dial performance follow-up (2026-11-13)
 

@@ -131,15 +131,18 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
             if (failed) label(canvas, "visual unavailable · use controls", 0f, 0f, Color.WHITE, 24f)
             else scene(canvas)
         } catch (_: RuntimeException) {
-            failed = true
-            contentDescription = "Visual renderer unavailable. Activity fallback is being restored."
-            if (!failureReported) {
-                failureReported = true
-                post { onRendererFailure?.invoke() }
-            }
-            postInvalidate()
+            handleRendererFailure()
         } finally { canvas.restoreToCount(save) }
         schedule()
+    }
+    private fun handleRendererFailure() {
+        failed = true
+        contentDescription = "Visual renderer unavailable. Activity fallback is being restored."
+        if (!failureReported) {
+            failureReported = true
+            post { onRendererFailure?.invoke() }
+        }
+        postInvalidate()
     }
     private fun scene(c: Canvas) {
         val pair = weights[3] + weights[4] + weights[5] + weights[6]

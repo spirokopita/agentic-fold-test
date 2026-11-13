@@ -420,3 +420,33 @@ Reference fidelity remains UNVERIFIED.
 Physical Fold posture/performance, owner voice/widget/TalkBack/live-provider/SAF/permission/automation,
 and reference fidelity remain incomplete. The overhaul must remain draft until those gates are
 actually exercised.
+
+## Renderer recovery and control-range verification — 2026-11-14
+
+The remaining locally testable renderer gates were exercised without adding a production failure
+control or changing scene complexity. The draw exception path now delegates to one private
+`handleRendererFailure` function. Focused instrumentation invokes that same handler reflectively,
+then verifies the neural View is hidden, the existing legacy activity View is visible, and the fixed
+STOP control remains visible. The isolated test passed 1/1 in 6.019 seconds on `emulator-5554`.
+
+A second isolated instrumentation test rendered nine control points:
+
+- conflict colour balance at 0%, 50% and 100%;
+- local infection at 0%, 50% and 100%;
+- peer infection at 0%, 50% and 100%.
+
+The test passed 1/1 in 21.578 seconds. It asserts that the conflict braid's visible red/blue
+distribution changes across the balance range, that local infection adds red internal structure
+while retaining blue identity, and that peer takeover adds blue internal structure while retaining
+red identity. All nine PNGs are retained under `docs/neural-evidence/control-sweeps/`; the six
+range endpoints were manually inspected. The images demonstrate rendered parameter response, not
+reference-image or motion-timing fidelity.
+
+Debug and Android-test APK assembly passed with the installed Java 21.0.11 runtime. Android Studio's
+bundled Java 25.0.4 remains incompatible with this Gradle setup and was not used for the successful
+build. Installation used `adb install -r` for both APKs without uninstalling or clearing app data.
+The full suites were not repeated because the production change only centralises the existing
+failure handler; historical 21/21 instrumentation and 19/19 unit results remain historical evidence.
+
+Still blocked: the original 16-PNG/8-GIF archive, an authorised physical Fold, representative device
+performance, and owner-dependent integrations. PR #2 must remain draft and unmerged.

@@ -104,4 +104,79 @@ class NeuralRenderingTest {
             onMain(scenario) { it.visualController.endPreview() }
         }
     }
+
+    @Test fun controlValuesProduceVisibleBalanceAndInfectionProgression() {
+        data class Colours(val blue: Int, val red: Int)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            fun capture(name: String, configure: (MainActivity) -> Unit): Colours {
+                onMain(scenario, configure)
+                Thread.sleep(1400)
+                var result = Colours(0, 0)
+                onMain(scenario) { activity ->
+                    val view = requireNotNull(find(activity.window.decorView))
+                    val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                    view.draw(Canvas(bitmap))
+                    var blue = 0
+                    var red = 0
+                    for (y in 0 until bitmap.height step 3) for (x in 0 until bitmap.width step 3) {
+                        val pixel = bitmap.getPixel(x, y)
+                        if (Color.blue(pixel) > Color.red(pixel) + 35) blue++
+                        if (Color.red(pixel) > Color.blue(pixel) + 35) red++
+                    }
+                    result = Colours(blue, red)
+                    val output = File(activity.getExternalFilesDir(null), "neural-control-sweeps").apply { mkdirs() }
+                    File(output, "$name.png").outputStream().use {
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                    bitmap.recycle()
+                }
+                return result
+            }
+
+            val conflictBlue = capture("conflict_balance_0") {
+                it.visualController.preview(VisualState.CONFLICT)
+                it.visualController.setConnectionColourBalance(0f)
+            }
+            capture("conflict_balance_50") {
+                it.visualController.preview(VisualState.CONFLICT)
+                it.visualController.setConnectionColourBalance(.5f)
+            }
+            val conflictRed = capture("conflict_balance_100") {
+                it.visualController.preview(VisualState.CONFLICT)
+                it.visualController.setConnectionColourBalance(1f)
+            }
+            assertTrue("balance=0 should show more red pressure", conflictBlue.red > conflictRed.red)
+            assertTrue("balance=1 should show more blue pressure", conflictRed.blue > conflictBlue.blue)
+
+            val localClear = capture("local_infection_0") {
+                it.visualController.preview(VisualState.LOCAL_INFECTED)
+                it.visualController.setInfectionVisualState(com.agentfold.app.ui.neural.OrbTarget.LOCAL, 0f)
+            }
+            capture("local_infection_50") {
+                it.visualController.preview(VisualState.LOCAL_INFECTED)
+                it.visualController.setInfectionVisualState(com.agentfold.app.ui.neural.OrbTarget.LOCAL, .5f)
+            }
+            val localFull = capture("local_infection_100") {
+                it.visualController.preview(VisualState.LOCAL_INFECTED)
+                it.visualController.setInfectionVisualState(com.agentfold.app.ui.neural.OrbTarget.LOCAL, 1f)
+            }
+            assertTrue("local infection must visibly add red structure", localFull.red > localClear.red + 50)
+            assertTrue("infected local sphere must retain blue identity", localFull.blue > 50)
+
+            val peerClear = capture("peer_infection_0") {
+                it.visualController.preview(VisualState.PEER_TAKEN_OVER)
+                it.visualController.setInfectionVisualState(com.agentfold.app.ui.neural.OrbTarget.PEER, 0f)
+            }
+            capture("peer_infection_50") {
+                it.visualController.preview(VisualState.PEER_TAKEN_OVER)
+                it.visualController.setInfectionVisualState(com.agentfold.app.ui.neural.OrbTarget.PEER, .5f)
+            }
+            val peerFull = capture("peer_infection_100") {
+                it.visualController.preview(VisualState.PEER_TAKEN_OVER)
+                it.visualController.setInfectionVisualState(com.agentfold.app.ui.neural.OrbTarget.PEER, 1f)
+            }
+            assertTrue("peer takeover must visibly add blue structure", peerFull.blue > peerClear.blue + 50)
+            assertTrue("taken-over peer sphere must retain red identity", peerFull.red > 50)
+        }
+    }
 }

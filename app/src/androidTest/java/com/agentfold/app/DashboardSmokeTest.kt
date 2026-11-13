@@ -8,6 +8,8 @@ import android.view.ViewGroup
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.agentfold.app.ui.ActivityNetworkView
+import com.agentfold.app.ui.neural.NeuralDialView
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,6 +20,16 @@ class DashboardSmokeTest {
         is Button -> listOf(view)
         is ViewGroup -> (0 until view.childCount).flatMap { buttons(view.getChildAt(it)) }
         else -> emptyList()
+    }
+    private fun neural(view: View): NeuralDialView? {
+        if (view is NeuralDialView) return view
+        if (view is ViewGroup) for (i in 0 until view.childCount) neural(view.getChildAt(i))?.let { return it }
+        return null
+    }
+    private fun legacy(view: View): ActivityNetworkView? {
+        if (view is ActivityNetworkView) return view
+        if (view is ViewGroup) for (i in 0 until view.childCount) legacy(view.getChildAt(i))?.let { return it }
+        return null
     }
     @Test fun dashboardStartsWithVisibleStopAndNoImplicitControl() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -51,6 +63,25 @@ class DashboardSmokeTest {
                 assertFalse(it.visualController.snapshot.preview)
                 assertEquals(com.agentfold.app.ui.neural.VisualState.THINKING_FIELD,
                     it.visualController.snapshot.state)
+            }
+        }
+    }
+    @Test fun rendererFailureAutomaticallyRestoresLegacyActivityView() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val neural = requireNotNull(neural(activity.window.decorView))
+                assertEquals(View.VISIBLE, neural.visibility)
+                val failure = NeuralDialView::class.java.getDeclaredMethod("handleRendererFailure")
+                failure.isAccessible = true
+                failure.invoke(neural)
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            scenario.onActivity { activity ->
+                assertEquals(View.GONE, requireNotNull(neural(activity.window.decorView)).visibility)
+                assertEquals(View.VISIBLE, requireNotNull(legacy(activity.window.decorView)).visibility)
+                assertTrue(buttons(activity.window.decorView).any {
+                    it.text.toString().startsWith("STOP") && it.isShown
+                })
             }
         }
     }

@@ -119,3 +119,21 @@ The original archive is still inaccessible: this session has no ChatGPT Library 
 prohibits automating the ChatGPT desktop app. The exact required transfer is
 `AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip`. Reference fidelity, physical Fold profiling and
 owner integrations remain outstanding; keep this PR draft.
+
+## Focused fallback and control-range evidence
+
+Automatic recovery is now fault-injection verified through the same private handler used by the
+renderer exception path: the neural View is hidden, the legacy activity View becomes visible and
+STOP remains visible. The isolated instrumentation check passed 1/1.
+
+Nine parameter captures at 0/50/100 are committed under
+`docs/neural-evidence/control-sweeps/`. The focused test and visual inspection verify that conflict
+balance visibly shifts the blue/red pressure distribution, local infection spreads red internally
+while retaining a blue shell, and peer takeover spreads blue internally while retaining a red shell.
+The isolated sweep passed 1/1. These are implementation-control checks, not comparisons against the
+missing source references.
+
+Debug and test APK assembly passed with Java 21.0.11, followed by data-preserving `adb install -r`.
+No complete suite was repeated; the recorded 21/21 instrumentation and 19/19 unit results remain
+historical. Reference assets, physical Fold measurements and owner-dependent checks remain pending,
+so PR #2 stays draft.
