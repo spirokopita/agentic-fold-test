@@ -466,3 +466,22 @@ their exterior identity.
 This evidence verifies that each implementation state remains alive after its transition settles. It
 does not establish the intended source-GIF timing, physical-device cadence, or reference fidelity.
 Those claims remain blocked on transfer of the original archive and an authorised Fold.
+
+## Bounded no-capture performance repeat — 2026-11-14
+
+Three sequential no-capture runs were measured after resetting frame statistics inside each running
+instrumentation session. All three focused tests passed. The median result was 144 rendered frames,
+93 ms CPU-frame median, 150 ms CPU P95, 88.89% modern deadline misses, 17 ms GPU median and 24 ms GPU
+P90. Individual results and collection details are recorded in
+`docs/PERFETTO_NEURAL_ANALYSIS.md`.
+
+This is worse than the earlier 40 ms CPU median and 34.87% deadline-miss result, while GPU timing
+remains similar. It confirms an emulator regression signal but does not isolate renderer CPU work
+from emulator scheduling or HWUI synchronization. No production edit was made because a narrow
+lookup found no current Perfetto recorder/trace-processor executable in PATH or the installed SDK,
+and removing required visual detail without a trace-backed cause would violate the acceptance
+criteria. Performance boundedness therefore remains implemented but unverified.
+
+Exact next performance action: acquire a supported Perfetto recorder and trace processor, trace this
+same no-capture workload, compare main-thread draw recording with `postAndWait`/VRI stalls, then make
+only a bottleneck-specific change. Repeat on an authorised physical Fold before any FPS claim.

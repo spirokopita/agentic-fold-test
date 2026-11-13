@@ -148,3 +148,14 @@ motion after transitions settle.
 
 This verifies implementation motion on the API 35 emulator only. It is not a comparison with the
 missing reference GIF timing and is not physical Fold frame-cadence evidence.
+
+## Current no-capture performance repeat
+
+Three sequential focused no-capture workloads passed. Their median was 144 frames, 93 ms CPU median,
+150 ms CPU P95, 88.89% modern deadline misses, and 17/24 ms GPU median/P90. This is worse than the
+earlier post-trigonometry sample while GPU timing remains similar. It is recorded as an unresolved
+emulator regression signal, not a 60 FPS result or a reason to remove required neural detail.
+
+No production change was made: the current environment exposes no Perfetto recorder/trace-processor
+executable, so the main-thread/HWUI cause has not been re-isolated. A current trace and representative
+physical Fold measurement remain required before another performance repair.

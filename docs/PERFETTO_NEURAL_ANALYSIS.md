@@ -95,3 +95,29 @@ ORDER BY frames DESC;
 Repeat the no-capture harness and Perfetto trace on an authorised physical Fold. Capture allocation
 counts with Android Studio Memory Profiler or a supported ART allocation source, then test fold/unfold,
 background/resume and thermal/battery behaviour. Do not claim 60 FPS from the emulator results.
+
+## Post-detail repeat — 2026-11-14
+
+The existing no-capture harness was rerun three times on `emulator-5554`, with frame statistics reset
+after instrumentation launched and collected during a bounded six-second window. Runs were strictly
+sequential; no PNG capture, compression, overlapping Gradle/UTP session or process-command-line dump
+was involved. All three focused workloads passed.
+
+| Run | Frames | CPU median | CPU P95 | Deadline misses | GPU median | GPU P90 | Test time |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 209 | 53 ms | 150 ms | 104/209 (49.76%) | 18 ms | 25 ms | 15.213 s |
+| 2 | 144 | 93 ms | 150 ms | 128/144 (88.89%) | 17 ms | 24 ms | 15.784 s |
+| 3 | 137 | 113 ms | 150 ms | 130/137 (94.89%) | 17 ms | 23 ms | 15.919 s |
+| median | 144 | 93 ms | 150 ms | 88.89% | 17 ms | 24 ms | 15.784 s |
+
+This is materially worse than the prior post-trigonometry median (40 ms CPU median, 150 ms P95,
+34.87% misses), while GPU median remains effectively unchanged. It therefore confirms the earlier
+single noisy detail-pass result as an emulator regression signal, but does not identify whether the
+cause is renderer recording, emulator scheduling, or HWUI synchronization.
+
+A narrow lookup found no `record_android_trace` or `trace_processor_shell` executable in the current
+PATH or installed Android SDK. No new trace diagnosis is claimed and no scene detail was removed.
+The next justified performance action is to install/use a supported Perfetto recorder and processor,
+capture the current no-capture workload, and compare main-thread `Record View#draw()`,
+`draw-VRI[MainActivity]` and `postAndWait` slices. Representative Fold profiling remains required
+before accepting or rejecting design-preserving renderer changes.

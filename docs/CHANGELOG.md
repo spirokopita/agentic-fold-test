@@ -8,6 +8,7 @@
 - Fault-injection verified that a renderer exception automatically restores the legacy activity view while STOP remains visible.
 - Added and inspected nine 0/50/100 control captures proving visible conflict-balance and bidirectional infection progression while retaining local/peer shell identity.
 - Verified every settled state continues to evolve over a 280 ms interval and retained seven inspected side-by-side temporal evidence pairs.
+- Repeated the no-capture workload three times; recorded a 93 ms CPU median, 150 ms P95 and 88.89% median deadline misses as an unresolved emulator regression signal, with no speculative renderer edit.
 
 ## Unreleased — neural dial performance follow-up (2026-11-13)
 
