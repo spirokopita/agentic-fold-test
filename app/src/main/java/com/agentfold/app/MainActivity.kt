@@ -382,6 +382,8 @@ class MainActivity : Activity() {
     }
 
     private fun stopWork() {
+        // STOP also exits visual simulations so no active-looking scene survives revocation.
+        visualController.endPreview()
         val service = AgentAccessibilityService.instance
         if (service != null) service.stopSession() else agent.cancel()
     }
@@ -426,11 +428,11 @@ class MainActivity : Activity() {
         if (status.text.toString() != summary) status.text = summary
         val modelLabel = snapshot.modelLabel ?: CredentialStore(this).modelName()
         networkView.show(snapshot, modelLabel, svc?.controlActive == true)
-        // Only public runtime stages drive live visuals. Peer states require an explicit integration.
+        // Public runtime and voice phases are the only live neural inputs. Peer/security scenes stay preview-only.
         if (!visualController.snapshot.preview) {
-            visualController.setVisualState(
-                if (snapshot.stage.busy) VisualState.INTERNAL_THINKING else VisualState.THINKING_FIELD)
-            visualController.setThoughtActivity(if (snapshot.stage.busy) .8f else 0f)
+            val signal = liveVisualSignal(snapshot.stage, VoiceChatService.visualPhase)
+            visualController.setVisualState(signal.state)
+            visualController.setThoughtActivity(signal.activity)
         }
         liveObjective.text = snapshot.objective
         liveSummary.text = "${snapshot.stage.label} · ${agent.status}"

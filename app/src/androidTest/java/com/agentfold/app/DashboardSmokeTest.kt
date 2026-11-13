@@ -28,6 +28,19 @@ class DashboardSmokeTest {
             }
         }
     }
+    @Test fun stopImmediatelyExitsDevelopmentPreview() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                activity.visualController.preview(com.agentfold.app.ui.neural.VisualState.INTERNAL_THINKING)
+                assertTrue(activity.visualController.snapshot.preview)
+                buttons(activity.window.decorView).first { it.text.toString().startsWith("STOP") }.performClick()
+                assertFalse(activity.visualController.snapshot.preview)
+                assertEquals(com.agentfold.app.ui.neural.VisualState.THINKING_FIELD,
+                    activity.visualController.snapshot.state)
+                assertEquals(0f, activity.visualController.snapshot.activity)
+            }
+        }
+    }
     @Test fun recreationDoesNotGrantControl() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.recreate()

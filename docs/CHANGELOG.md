@@ -1,5 +1,8 @@
 ## Unreleased — neural dial performance follow-up (2026-11-13)
 
+- Added a tested public-event visual adapter for voice listening/processing/speaking and genuine runtime stages without adding inferred peer, security or endpoint telemetry.
+- STOP now exits development simulation before revoking runtime/accessibility work, preventing an active-looking preview from surviving cancellation.
+- Produced and verified a git-ignored debug delivery APK; recorded package, SDK levels, debug certificate, checksum and update constraints in the handoff.
 - Added a no-capture seven-state performance harness to separate renderer cost from PNG evidence generation.
 - Precomputed immutable sphere/tendril trigonometric terms and replaced per-sample tendril sine evaluation with a recurrence without reducing geometry, strands or glow layers.
 - Recorded official Perfetto before/after traces and reproducible SQL; repeated renderer-only samples improved CPU median and P95 while emulator HWUI buffer stuffing remains material.

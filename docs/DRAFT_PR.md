@@ -63,3 +63,31 @@ The earlier apparent rotation hang was not reproduced as an application deadlock
 ## Evidence
 
 See `docs/NEURAL_UI.md`, `docs/PERFETTO_NEURAL_ANALYSIS.md`, `docs/neural-evidence/`, and `app/build/outputs/androidTest-results/connected/debug/`. Draft PR: https://github.com/spirokopita/agentic-fold-test/pull/2
+
+## Real event integration and delivery build
+
+Public runtime stages and voice-service phases now pass through a small visual-only adapter. Listening
+uses the thinking field; planning, provider calls, verification and validated tool execution use
+internal thinking; completion, cancellation and errors return to the inactive thinking field. STOP
+also exits development preview before revoking work. No peer, firewall, infection or external-endpoint
+telemetry is invented; those scenes remain explicitly simulated.
+
+Focused checks added after the historical 21/21 instrumentation and 19/19 unit runs:
+
+- signal-adapter unit tests: 3/3 passed;
+- STOP exits preview: 1/1 instrumentation passed;
+- rotation preserves STOP: 1/1 instrumentation passed;
+- debug assembly, install, cold launch and background/hot resume passed on Medium_Phone API 35.
+
+Git-ignored delivery APK: `delivery/AgentFold-Recovery-0.7.0-debug.apk`
+
+SHA-256: `8cc1acc16c470b4a7f483a8859b4723dcd4d85e15ee4cb41311f73988defad53`
+
+Package/version: `com.agentfold.app.recovery`, 0.7.0 (11), min API 29, target API 35.
+
+Signer certificate SHA-256:
+`4303c489827fc98c319be33083de6f83199e017bfbf09b9bccf08295e7496718`.
+
+The package updates only an installation with the same recovery application ID, signing certificate
+and compatible version code. It does not replace legacy `com.agentfold.app` or owner-signed builds.
+Physical Fold, real reference assets and owner-dependent integration checks remain outstanding.

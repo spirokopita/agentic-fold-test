@@ -275,3 +275,66 @@ Only `emulator-5554` was attached; no physical Fold was available. No physical i
 accessibility, provider or automation action was attempted. The reference archive and its named PNG/GIF
 members were searched in the project, Downloads, Documents and Desktop and remain inaccessible. The
 ChatGPT Library is outside this IDE session, so fidelity remains UNVERIFIED.
+
+## Live-signal audit and device-validation build — 2026-11-13
+
+The renderer remains downstream-only. `LiveVisualSignals.kt` maps public application telemetry to
+`VisualState` and activity intensity; it cannot start providers, tools, voice, permissions or device
+control. The audit produced this source-backed mapping:
+
+| Real event and source | Live visual response | Status |
+| --- | --- | --- |
+| Speech recognizer listening, `VoiceChatService.beginListening` | thinking field, activity 0.35 | Implemented in this cycle |
+| Recognized voice request being prepared, `VoiceChatService.onResults` | internal thinking, activity 0.65 until runtime telemetry takes precedence | Implemented in this cycle |
+| Text-to-speech reply, `VoiceChatService.say` | thinking field, activity 0.20 | Implemented in this cycle |
+| Planning/provider request/verification, `AgentRuntime` stages `PLANNING`, `MODEL`, `VERIFYING` | internal thinking, activity 0.80 | Already implemented; now expressed through the tested adapter |
+| Validated tool execution, `AgentRuntime` stage `TOOL` | internal thinking, activity 0.80 | Implemented; intentionally does not invent an external endpoint |
+| Completion, cancellation or failure, `AgentRuntime` stages `COMPLETED`, `CANCELLED`, `FAILED` | thinking field, activity 0 | Implemented |
+| Fixed STOP buttons, `MainActivity.stopWork`, followed by runtime/accessibility cancellation | exits any simulation immediately, resets to inactive thinking field, then revokes work | Strengthened and focused-tested |
+| External exploration endpoints, peer communication/conflict, infection and firewall metrics | no live mapping | Intentionally preview-only until truthful integrations exist |
+| Seven development previews, `NeuralController.preview` | selected simulated state with visible simulation labelling | Existing isolated development path |
+
+Voice phase changes are published through the existing main-thread `SessionStore` notification boundary.
+Runtime stages take precedence over voice phase. STOP now calls `endPreview()` before cancellation so an
+active-looking simulation cannot remain after revocation. No provider, tool, accessibility, permission,
+widget, file or legacy-renderer implementation was changed.
+
+Focused validation after this integration change:
+
+- `LiveVisualSignalsTest`: 3 passed, 0 failed, 0 skipped;
+- `DashboardSmokeTest.stopImmediatelyExitsDevelopmentPreview`: 1 passed on `emulator-5554`;
+- `DashboardSmokeTest.rotationPreservesStopPath`: 1 passed on `emulator-5554`;
+- `:app:assembleDebug`: passed;
+- delivery install and cold launch: passed; background/hot resume preserved the dashboard and STOP path;
+- the historical 21/21 instrumentation and 19/19 unit results remain evidence for unchanged areas and
+  were not rerun as complete suites.
+
+Delivery artifact (git-ignored):
+
+- path: `delivery/AgentFold-Recovery-0.7.0-debug.apk`;
+- SHA-256: `8cc1acc16c470b4a7f483a8859b4723dcd4d85e15ee4cb41311f73988defad53`;
+- size: 2,699,991 bytes;
+- application ID: `com.agentfold.app.recovery`;
+- version: 0.7.0 (version code 11); minimum Android 10 / API 29; target API 35;
+- signer: Android Debug, certificate SHA-256
+  `4303c489827fc98c319be33083de6f83199e017bfbf09b9bccf08295e7496718`.
+
+The installed emulator APK was pulled back and had the same byte size and certificate digest. This APK
+can update `com.agentfold.app.recovery` only when the installed package uses the same certificate and
+a compatible version code. It cannot update the legacy `com.agentfold.app` package, an owner-signed
+build or a build signed by another machine's debug key. Focused instrumentation had removed the prior
+test installation, so no real update conflict was encountered; installation succeeded without an
+uninstall or data-clear command.
+
+Only the API 35 Medium_Phone emulator was attached. Physical Fold validation remains pending. Exact
+non-destructive checklist: explicitly select the Fold serial; verify matching package/certificate;
+install with `adb -s SERIAL install -r`; launch and confirm STOP before interaction; inspect all seven
+simulation labels; press STOP from an active preview; background/resume; rotate; move between cover and
+inner displays; fold/unfold during a transition and while idle; confirm state/scroll recovery and no
+permission, accessibility, provider or automation activation. Preserve data and record screenshots,
+logcat and form-factor state for every failure.
+
+Reference fidelity remains UNVERIFIED because the actual 16 PNG and 8 GIF assets were not newly
+supplied or accessible. Owner-driven microphone permission/recognition, widget, TalkBack/accessibility,
+live provider, SAF export, sensitive permissions, device automation, owner signing and migration
+checks also remain pending.
