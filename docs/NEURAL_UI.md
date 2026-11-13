@@ -104,3 +104,52 @@ Conflict colour pressure is controllable but is not tied to real peer telemetry.
 is a native dialog outside the circular scene. Functional task panels remain available for safety
 and compatibility rather than being rewritten as a new app shell.
 
+## Local API 35 validation and performance follow-up
+
+The stalled validation was recovered without terminating unrelated processes. Host diagnostics found
+no remaining project Gradle, UTP, Java test, or emulator process; only the shared ADB server remained.
+The retained UTP log recorded five passes and `DashboardSmokeTest.rotationPreservesStopPath` starting,
+but no failure. `Medium_Phone` was started cleanly, reported boot complete, was woken, and the debug
+app installed and visibly opened.
+
+Evidence is retained under `app/build/outputs/androidTest-results/connected/debug/`, including
+`Medium_Phone(AVD) - 15/testlog/test-results.log`, `Medium_Phone(AVD) - 15/utp.0.log`, and
+`TEST-Medium_Phone(AVD) - 15-_app-.xml`. Android Studio also retained detailed focused/full build
+transcripts as `shell-11.log` and `shell-12.log` in its session shell-log directory.
+
+With Java 21.0.11 selected explicitly, the focused command was:
+
+`gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.agentfold.app.DashboardSmokeTest#rotationPreservesStopPath --info --stacktrace --no-daemon`
+
+It completed in 1 minute 7 seconds: 1 passed, 0 failed, 0 skipped, 0 unfinished. The test itself
+completed about ten seconds after instrumentation began. There was no deadlock, lifecycle defect,
+UI-idleness wait, graphics starvation, ANR, or assertion failure. The prior symptom was Gradle/UTP
+continuing after the IDE tool's five-minute RPC timeout, followed by another invocation waiting behind
+it. No rotation or STOP-path code change was justified.
+
+The diagnostic full instrumentation suite completed in 2 minutes 14 seconds, and the final post-change
+suite completed in 1 minute 59 seconds: 20 passed, 0 failed, 0 skipped, 0 unfinished in each run. This
+includes all five PDF tests, the corrected runtime tool registry assertion, seven-state capture,
+workspace navigation, rotation and fixed-STOP checks. Unit tests also pass: 19 passed, 0 failed,
+0 skipped. Manual checks confirmed fallback selection, background/resume,
+reduced-motion rendering, and a visible fixed STOP control.
+
+Cold `am start -W -S` samples on `Medium_Phone` were 1458 ms before the allocation cleanup and
+2140 ms afterwards. These two emulator samples are noisy and do not demonstrate a startup-time
+improvement. Five-second `dumpsys gfxinfo` windows reported 24-25 ms median CPU frame time,
+18 ms median GPU time, and 1.24-1.55% modern frame-deadline misses after launch. The legacy jank
+percentage is not used because it applies a 16.7 ms threshold inconsistent with the emulator's
+observed cadence. No 60 FPS claim is made.
+
+Source inspection found avoidable draw-loop allocations rather than a lifecycle scheduling defect:
+`sliceArray()` allocated a temporary weight array every frame, `Typeface.create()` ran for every
+label, and pair-state gradients and their colour/position arrays were rebuilt for every strand on
+every frame. `NeuralDialView` now sums the four pair weights directly, caches the condensed typeface,
+reuses a balance-keyed `LinearGradient`, and moves an invariant arc bound update outside its loop.
+Geometry, seven states, transitions, black negative space, neural paths, firewall candles, preview
+simulation labels, reduced-motion handling and frame scheduling are unchanged.
+
+Reference-image fidelity remains UNVERIFIED until the real assets are recovered, inspected and
+compared. Physical Fold profiling and owner-driven voice, widget, accessibility, provider, permission
+and device-automation checks also remain outstanding; their implementations and security gates were
+not changed.

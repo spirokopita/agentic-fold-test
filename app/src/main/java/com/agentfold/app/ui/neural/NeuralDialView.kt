@@ -19,6 +19,9 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     private val path = Path()
     private val bounds = RectF()
     private val visible = Rect()
+    private val condensedTypeface = Typeface.create("sans-serif-condensed", Typeface.NORMAL)
+    private var balanceShader: LinearGradient? = null
+    private var shaderBalance = Float.NaN
     private val weights = FloatArray(7).apply { this[0] = 1f }
     private val startWeights = weights.copyOf()
     private var snapshot = controller.snapshot
@@ -106,7 +109,7 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         schedule()
     }
     private fun scene(c: Canvas) {
-        val pair = weights.sliceArray(3..6).sum()
+        val pair = weights[3] + weights[4] + weights[5] + weights[6]
         val explore = weights[2]
         val localX = -225f * pair
         val localRadius = 326f * (1 - pair - explore) + 160f * pair + 28f * explore
@@ -122,11 +125,11 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
         if (field > .001f) {
             circle(c, 0f, 0f, 354f, BLUE, 1.3f, field)
             circle(c, 0f, 0f, 386f, BLUE, 1.3f, field)
+            bounds.set(-370f, -370f, 370f, 370f)
             for (i in 0..31) {
                 val speed = 7f + (i % 7) * .51f
                 val angle = i * 11.25f + clock * speed * (.45f + snapshot.activity)
                 ink.style = Paint.Style.STROKE; ink.strokeWidth = 13f; ink.color = Color.WHITE; ink.alpha = (field * 225).toInt()
-                bounds.set(-370f, -370f, 370f, 370f)
                 c.drawArc(bounds, angle, 2.5f + i % 5, false, ink)
             }
         }
@@ -178,6 +181,13 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     }
     private fun tendrils(c: Canvas, alpha: Float) {
         val conflict = weights[4] / alpha.coerceAtLeast(.001f)
+        if (balanceShader == null || shaderBalance != snapshot.balance) {
+            shaderBalance = snapshot.balance
+            balanceShader = LinearGradient(-160f, 0f, 160f, 0f,
+                intArrayOf(BLUE, BLUE, 0xffb54bff.toInt(), RED, RED),
+                floatArrayOf(0f, (shaderBalance - .12f).coerceIn(.01f, .85f), shaderBalance.coerceIn(.02f, .98f),
+                    (shaderBalance + .12f).coerceIn(.15f, .99f), 1f), Shader.TileMode.CLAMP)
+        }
         for (strand in 0..11) {
             path.reset()
             for (step in 0..80) {
@@ -187,9 +197,7 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
                 val y = -35f + sin(u * PI.toFloat() * (4 + conflict * 3) - clock * 1.8f + strand * .53f) * envelope * (20f + strand * 2.8f)
                 if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
-            ink.shader = LinearGradient(-160f, 0f, 160f, 0f,
-                intArrayOf(BLUE, BLUE, 0xffb54bff.toInt(), RED, RED),
-                floatArrayOf(0f, (snapshot.balance - .12f).coerceIn(.01f, .85f), snapshot.balance.coerceIn(.02f, .98f), (snapshot.balance + .12f).coerceIn(.15f, .99f), 1f), Shader.TileMode.CLAMP)
+            ink.shader = balanceShader
             glow(c, path, Color.WHITE, 1.2f, alpha)
             ink.shader = null
             val u = ((clock * .18f + strand * .083f) % 1f)
@@ -239,7 +247,7 @@ class NeuralDialView(context: Context, val controller: NeuralController) : View(
     }
     private fun label(c: Canvas, text: String, x: Float, y: Float, color: Int, size: Float) {
         ink.shader = null; ink.style = Paint.Style.FILL; ink.color = color; ink.alpha = 255
-        ink.typeface = Typeface.create("sans-serif-condensed", Typeface.NORMAL); ink.textSize = size; ink.textAlign = Paint.Align.CENTER
+        ink.typeface = condensedTypeface; ink.textSize = size; ink.textAlign = Paint.Align.CENTER
         c.drawText(text, x, y, ink)
     }
     companion object {
