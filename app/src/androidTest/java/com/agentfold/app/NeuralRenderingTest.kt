@@ -179,4 +179,48 @@ class NeuralRenderingTest {
             assertTrue("taken-over peer sphere must retain red identity", peerFull.red > 50)
         }
     }
+
+    @Test fun everySettledStateContinuesToAnimate() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            for (state in VisualState.entries) {
+                onMain(scenario) { it.visualController.preview(state) }
+                Thread.sleep(1300)
+                lateinit var first: Bitmap
+                onMain(scenario) { activity ->
+                    val view = requireNotNull(find(activity.window.decorView))
+                    first = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                    view.draw(Canvas(first))
+                }
+                Thread.sleep(280)
+                onMain(scenario) { activity ->
+                    val view = requireNotNull(find(activity.window.decorView))
+                    val second = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                    view.draw(Canvas(second))
+                    var changed = 0
+                    for (y in 0 until first.height step 4) for (x in 0 until first.width step 4) {
+                        val before = first.getPixel(x, y)
+                        val after = second.getPixel(x, y)
+                        val delta = kotlin.math.abs(Color.red(before) - Color.red(after)) +
+                            kotlin.math.abs(Color.green(before) - Color.green(after)) +
+                            kotlin.math.abs(Color.blue(before) - Color.blue(after))
+                        if (delta > 36) changed++
+                    }
+                    assertTrue("${state.name} did not visibly evolve: $changed samples", changed > 40)
+
+                    val comparison = Bitmap.createBitmap(first.width * 2, first.height, Bitmap.Config.ARGB_8888)
+                    Canvas(comparison).apply {
+                        drawBitmap(first, 0f, 0f, null)
+                        drawBitmap(second, first.width.toFloat(), 0f, null)
+                    }
+                    val output = File(activity.getExternalFilesDir(null), "neural-motion-pairs").apply { mkdirs() }
+                    File(output, "${state.name.lowercase()}_280ms.png").outputStream().use {
+                        comparison.compress(Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                    comparison.recycle()
+                    second.recycle()
+                    first.recycle()
+                }
+            }
+        }
+    }
 }

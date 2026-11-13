@@ -450,3 +450,19 @@ failure handler; historical 21/21 instrumentation and 19/19 unit results remain 
 
 Still blocked: the original 16-PNG/8-GIF archive, an authorised physical Fold, representative device
 performance, and owner-dependent integrations. PR #2 must remain draft and unmerged.
+
+## Seven-state temporal evidence — 2026-11-14
+
+A focused test now samples every fully settled state twice, 280 ms apart. It computes a thresholded
+RGB delta over the circular View and requires meaningful visible change rather than relying on a
+running frame callback. The isolated test passed 1/1 in 23.777 seconds on the API 35 emulator.
+
+Seven side-by-side frame pairs are retained under `docs/neural-evidence/motion-pairs/` and were
+visually inspected. They show independently moving thinking packets, continuing internal sphere
+deformation and orbiting nodes, growing exploration paths, changing sphere neural geometry, travelling
+braid/pressure packets and flame sway. Both infection scenes continue to animate while retaining
+their exterior identity.
+
+This evidence verifies that each implementation state remains alive after its transition settles. It
+does not establish the intended source-GIF timing, physical-device cadence, or reference fidelity.
+Those claims remain blocked on transfer of the original archive and an authorised Fold.

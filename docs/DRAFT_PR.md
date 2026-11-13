@@ -137,3 +137,14 @@ Debug and test APK assembly passed with Java 21.0.11, followed by data-preservin
 No complete suite was repeated; the recorded 21/21 instrumentation and 19/19 unit results remain
 historical. Reference assets, physical Fold measurements and owner-dependent checks remain pending,
 so PR #2 stays draft.
+
+## Temporal state evidence
+
+A focused instrumentation check sampled every settled visual state twice at a 280 ms interval and
+required meaningful rendered-pixel change. It passed 1/1 in 23.777 seconds. Seven inspected
+side-by-side pairs under `docs/neural-evidence/motion-pairs/` show continued packet movement, sphere
+deformation, exploration growth, braid/pressure travel, candle-flame sway and infection-scene neural
+motion after transitions settle.
+
+This verifies implementation motion on the API 35 emulator only. It is not a comparison with the
+missing reference GIF timing and is not physical Fold frame-cadence evidence.
