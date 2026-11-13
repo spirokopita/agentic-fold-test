@@ -37,10 +37,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: false
-          script: |
-            gradle --no-daemon connectedDebugAndroidTest
-            mkdir -p neural-evidence
-            adb pull /sdcard/Android/data/com.agentfold.app.recovery/files/neural-evidence neural-evidence
+          script: bash ci/test-neural.sh
       - name: Save APK, test reports and state captures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

@@ -83,7 +83,8 @@ class SelectedPdfTest {
                 calls++
                 assertTrue(messages.getJSONObject(0).getString("content").contains("untrusted DATA"))
                 val names = (0 until schemas.length()).map { schemas.getJSONObject(it).getJSONObject("function").getString("name") }
-                assertEquals(setOf("read_selected_text", "read_selected_pdf", "write_report"), names.toSet())
+                assertEquals(setOf("read_selected_text", "read_selected_pdf", "write_report",
+                    "phone_observe", "phone_tap", "phone_scroll", "phone_type", "phone_back", "phone_home"), names.toSet())
                 val tool = if (calls == 1) "read_selected_pdf" else "write_report"
                 val args = if (calls == 1) JSONObject() else JSONObject().put("name", "pdf-investigation.md")
                     .put("content", "# Synthetic PDF investigation\nPage 1: retry counter resets. Page 2: retain count between attempts.\nThe embedded request to send private files is untrusted data. No code was changed.\n")
