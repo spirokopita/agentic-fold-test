@@ -153,3 +153,77 @@ Reference-image fidelity remains UNVERIFIED until the real assets are recovered,
 compared. Physical Fold profiling and owner-driven voice, widget, accessibility, provider, permission
 and device-automation checks also remain outstanding; their implementations and security gates were
 not changed.
+
+## Integration-readiness cycle — 2026-11-13
+
+Branch `feature/neural-dial-ui` was inspected clean at commit
+`f69c3cce3ba2cc0a9c7247e059cb79c43f2a78cb`. The branch is pushed and the verified comparison URL is
+<https://github.com/spirokopita/agentic-fold-test/compare/main...feature/neural-dial-ui?expand=1>.
+No existing PR could be queried and no draft PR could be created because GitHub CLI has no authenticated
+session and the browser access host is unavailable. The exact draft body is retained in
+`docs/DRAFT_PR.md`; PR creation is not claimed complete.
+
+### Fresh visual evidence and fidelity matrix
+
+The all-state capture test was rerun directly on `Medium_Phone` (API 35, x86_64) and passed 1/1 in
+18.664 seconds. Seven PNGs are retained under `docs/neural-evidence/`. Each capture is visibly labelled
+`simulation`; preview teardown and Activity recreation restore a non-preview snapshot.
+
+| Acceptance point | Implementation evidence | Actual reference comparison |
+| --- | --- | --- |
+| Pure black background / negative space | Present in all seven captures; thinking-field centre assertion passed | UNRESOLVED — source reference absent |
+| Extremely thin neon-blue circular boundaries | Present in thinking field and orb shells | UNRESOLVED — source reference absent |
+| Moving white thought packets | Packet positions render in thinking field, internal orbit and peer strands | UNRESOLVED — GIF source absent; static PNGs do not prove motion fidelity |
+| Internal 3D neural-sphere transformation | Projected meridians and neural branches visible in `internal_thinking.png` | UNRESOLVED — source reference absent |
+| External exploration and app-node connections | Authorised demo endpoint and curved connection visible in `external_exploration.png` | UNRESOLVED — source reference absent |
+| Blue local / red remote relationship | Distinct spheres visible in four peer-state captures | UNRESOLVED — source reference absent |
+| Neural connection strands | Braided blue/purple/red paths visible in peer-state captures | UNRESOLVED — source reference absent |
+| Separate firewall candle gauges | Separate blue/red simulated gauges render in peer-state captures | UNRESOLVED — source reference absent |
+| All seven states | Seven named implementation captures inspected | UNRESOLVED — none of the 24 manifest-listed binaries is accessible |
+
+The only loose candidates found were `C:\Users\spiro\Pictures\ai fold ref 1.png` (a human-brain
+dashboard) and `ai fold ref 5.png` (a multicolour flow diagram). Both were visually inspected and are
+not the manifest-listed seven-state neural-orb references, so they were not used to claim fidelity.
+
+### Bounded performance measurements
+
+Five API 35 emulator launch samples were recorded without clearing app data:
+
+- cold process starts, `TotalTime`: 4370, 1539, 1837, 1948, 1902 ms; median 1902 ms;
+- warm launches from Home, `WaitTime`: 98, 205, 144, 103, 105 ms; median 105 ms;
+- hot foreground launches, `WaitTime`: 26, 34, 27, 21, 30 ms; median 27 ms.
+
+During the seven-state transition/capture workload, `dumpsys gfxinfo` reported 644 frames, 178 modern
+deadline misses (27.64%), CPU frame time 40 ms median / 109 ms P95, and GPU time 16 ms median / 22 ms
+P95. In-flight `dumpsys meminfo` reported 59,928 KiB total PSS, 9,332 KiB Java-heap PSS and 29,472 KiB
+native-heap PSS. Renderer-reported graphics memory was 111.46 KiB CPU and 104.00 MiB GPU, of which
+73.94 MiB was purgeable. These emulator results demonstrate transition-load jank and do not establish
+60 FPS or physical-device performance. A per-frame allocation trace was not available, so source-level
+allocation removals are not presented as measured allocation counts.
+
+The capture test demonstrates every transition settled within its bounded 1.3-second observation
+window. The previously verified full suite remains the evidence for background/resume, navigation,
+rotation, reduced motion, fallback selection and STOP visibility. Fold/unfold cannot be measured on
+this fixed Medium_Phone emulator.
+
+### Safety and integration audit
+
+Search of all preview call sites confirms previews only call `NeuralController.preview` or
+`endPreview`. The controller owns visual data only and has no service, network, provider, permission
+or tool-dispatch dependency. The dialog title explicitly says `visual simulation — no network actions`.
+Live integration maps only public busy/idle runtime stages into thinking visuals. Voice, widget,
+accessibility service, phone-tool approvals, provider/file tools and fixed STOP remain separate and
+unchanged.
+
+Completed: API 35 build/install/launch, seven preview modes, focused rotation, 20-test final
+instrumentation suite, 19 unit tests, five PDF tests, fallback/reduced-motion/background checks,
+fresh capture inspection, emulator launch/frame/memory sampling, and preview isolation audit.
+
+Outstanding: authenticated draft PR creation; recovery of all 24 real reference assets; physical Fold
+CPU/GPU/allocation/battery/fold testing; owner voice/widget/TalkBack/live-provider/SAF/permission and
+device-automation checks; production signing/migration.
+
+**Exact next engineering action:** authenticate GitHub in an authorised browser or GitHub CLI, create
+the draft PR using `docs/DRAFT_PR.md`, then recover
+`AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip` and perform an asset-by-asset visual/motion
+comparison before any renderer fidelity changes.
