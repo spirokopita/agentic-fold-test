@@ -1,0 +1,78 @@
+name: Publish validated development release
+on:
+  workflow_run:
+    workflows: ['Build Agent Fold APK']
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  report:
+    if: github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      issues: write
+    steps:
+      - name: Record result for phone-only development
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          gh run view "$RUN_ID" --json headSha,conclusion,event,headBranch,url > run.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('run.json'))
+          Path('report.md').write_text(f"### Agent Fold validation\n\nCommit: {r['headSha']}\n\nBranch: {r['headBranch']}\n\nResult: **{r['conclusion']}**\n\nRun: {r['url']}\n\nUnit/lint/build and emulator evidence are attached to that run. Physical Fold and live-provider tests are not supplied by CI.\n")
+          PY
+          gh issue comment 1 --body-file report.md
+  release:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      vars.AGENTFOLD_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: agentfold-development-release
+      cancel-in-progress: false
+    steps:
+      - name: Publish checked APK, source and test evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_CERT: ${{ vars.AGENTFOLD_SIGNING_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          gh run download "$RUN_ID" --name "AgentFold-v0.6.3-$HEAD_SHA" --dir release
+          gh run download "$RUN_ID" --name "validation-$HEAD_SHA" --dir evidence/validation
+          gh run download "$RUN_ID" --name "emulator-evidence-$HEAD_SHA" --dir evidence/emulator
+          (cd release && sha256sum --check SHA256SUMS)
+          test "$(cat release/commit.txt)" = "$HEAD_SHA"
+          test -s release/AgentFold-v0.6.3-Recovery.apk
+          test "$(cat release/signing-mode.txt)" = owner-managed
+          test -n "$EXPECTED_CERT"
+          grep -Fx "Signer #1 certificate SHA-256 digest: $EXPECTED_CERT" release/signing-report.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          with ZipFile('release/AgentFold-v0.6.3-test-evidence.zip','w',ZIP_DEFLATED) as z:
+              for p in Path('evidence').rglob('*'):
+                  if p.is_file(): z.write(p,p)
+          PY
+          (cd release && sha256sum AgentFold-v0.6.3-Recovery.apk AgentFold-v0.6.3-source.zip AgentFold-v0.6.3-test-evidence.zip commit.txt signing-report.txt package-report.txt > SHA256SUMS)
+          TAG=v0.6.3
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Version already released; preserve its existing tag/assets. Bump version for a new release." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          printf 'Agent Fold development build.\n\nCommit: %s\nValidation run: %s\n\nUnit tests, Android lint, APK compilation and emulator instrumentation passed. Physical Fold validation and live-provider tests remain pending. The network dashboard displays real runtime phases, bounded model calls, tool results and manual control state. API 35 emulator installation and instrumentation passed. Physical Fold installation remains unverified. Owner-managed signing and an explicit migration plan are required before enabling publication; changing the certificate cannot update an already installed Recovery app.\n\nFeatures: owner-configured model/tool loop, per-task selected-file consent, verified text reports, local task continuity, expiring manual device-control sessions and visible STOP controls. Bounded PDF text extraction is supported on Android 15+. Autonomous model-driven cross-app actions, OCR, voice and durable background jobs are not implemented.\n' "$HEAD_SHA" "$RUN_ID" > release-notes.md
+          gh release create "$TAG" --prerelease --target "$HEAD_SHA" --title "Agent Fold v0.6.3 development" --notes-file release-notes.md \
+            release/AgentFold-v0.6.3-Recovery.apk release/AgentFold-v0.6.3-source.zip release/AgentFold-v0.6.3-test-evidence.zip release/SHA256SUMS release/commit.txt release/signing-report.txt release/package-report.txt

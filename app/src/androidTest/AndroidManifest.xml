@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Test APK only. Serves generated public synthetic fixtures, never user files. -->
+        <provider android:name="com.agentfold.app.agent.PdfFixtureProvider"
+            android:authorities="com.agentfold.app.recovery.test.pdf-fixtures" android:exported="true" />
+    </application>
+</manifest>

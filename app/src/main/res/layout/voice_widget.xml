@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/voice_widget_root" android:orientation="vertical"
+    android:gravity="center" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/voice_widget_background" android:padding="3dp">
+    <TextView android:id="@+id/voice_widget_icon" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:text="◌" android:textColor="#DDB9FF"
+        android:textSize="25sp" android:gravity="center" />
+    <TextView android:id="@+id/voice_widget_label" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:text="OFF" android:textColor="#FFFFFF"
+        android:textSize="10sp" android:textStyle="bold" android:gravity="center" />
+</LinearLayout>

@@ -1,0 +1,503 @@
+# Neural dial implementation and handoff
+
+## Source recovery
+
+The `main` branch at 93aaf0d contained only a source ZIP, README and image manifest.
+The source ZIP blob 1e574719a9dac270fa6dfea53714523d67366558 was recovered byte-for-byte
+through GitHub's base64 file API and extracted as the Android project at the repository root.
+The integration branch da1a7a7 adds TapTarget.kt and TapTargetTest.kt; both were preserved.
+No service, permission declaration, provider, widget, phone-tool gate or STOP implementation
+was replaced. The previous ActivityNetworkView remains selectable as a fallback.
+
+## Architecture
+
+`ui/neural/NeuralController.kt` is the signal boundary. Its immutable snapshots contain
+visual parameters only. Setters accept calls from backend threads; the View marshals updates
+to the UI thread. No controller action dispatches a tool, changes permissions or contacts a peer.
+The Activity owns its controller. A future longer-lived backend should restore current signals
+on attachment; preview data deliberately does not survive Activity recreation.
+
+`NeuralDialView.kt` draws procedural vector paths into a circular 1000-unit coordinate system,
+scaled to the smaller view dimension. Native hardware Canvas acceleration is used when Android
+provides it, with software-compatible layered strokes for bloom. No Compose or shader dependency
+was added to this native-View application. Spherical projection uses sampled deformed meridians;
+it is a projected procedural scene, not a volumetric ray marcher.
+
+## State specification
+
+| State | Geometry and motion | Input / truth boundary |
+| --- | --- | --- |
+| thinking field | two cyan boundaries, 32 independent white arc packets, black centre | idle public runtime state; motion is decorative |
+| internal thinking | twisting projected sphere, neural branching, orbiting thoughts | busy public execution stage, never private model reasoning |
+| external exploration | small central orb; curved branching paths to peripheral endpoints | only supplied available endpoints connect; no app inventory or permission inference |
+| peaceful communication | distinct blue/red spheres; sinusoidal braided strands with travelling white packets | preview until an authorised integration supplies peer signals |
+| conflict | denser moving interference along blue/purple/red colour boundary | visual only; no attack mechanisms |
+| our ai infected | dull blue shell, red internal paths and meridians | explicitly supplied intensity; not a security diagnosis |
+| other ai taken over | red shell, blue internal paths and meridians | explicitly supplied intensity; not a security diagnosis |
+
+States share one scene and interpolate seven weights using a one-second smoothstep transition.
+Interrupted transitions start from current weights. Local position/radius, sphere detail and peer
+visibility evolve with those weights. Pair-only elements fade into the same viewport.
+
+Firewall candles use configurable label/value/simulated fields. Missing values display a dash;
+they are never treated as zero security. Preview metrics have a visible simulation label.
+Percentages are clamped and nonfinite inputs rejected. The default API does not define what a
+percentage measures. Platform sans-serif-condensed typography requires no bundled font license.
+
+## Lifecycle and performance
+
+Frame scheduling uses display-synchronised callbacks. It stops when detached, host-stopped,
+hidden, offscreen or reduced-motion settings disable animation. Power Saver reduces drawing
+detail and schedules at about 30 FPS. Normal mode targets display refresh; 60 FPS has not yet
+been measured. Geometry is bounded (12 endpoint nodes, 24 meridians, 12 strands). CPU/GPU and
+allocation profiling on a physical Fold remain required. Draw failures stop the renderer and
+leave functional controls and the selectable old activity view outside its failure boundary.
+
+## Reference and visual acceptance ledger
+
+The GitHub reference manifest explicitly says binary assets are pending upload. Tree inspection
+confirmed zero PNG/GIF references in either audited branch. The 49,149,556-byte reference ZIP
+was resolved from its supplied Library identity, but transfer could not run because local
+Python is unavailable. No source image or GIF has been visually inspected in this implementation
+session. Reference comparison is therefore UNVERIFIED for all seven states. Do not substitute
+the manifest or synthetic captures for this comparison. Recover the ZIP, inspect all 16 PNGs
+and 8 GIFs, organise them under assets/ai-ui/chat-2026-11-13, and compare emulator captures.
+
+## Validation status and exact next actions
+
+1. Source recovery and inspection: completed; preserve the original source ZIP in Git history.
+2. Rendering foundation and seven states: source implemented, compilation and appearance pending.
+3. Transition engine and Activity integration: source implemented; native fallback retained.
+4. Tests: all three controller boundary tests passed using Kotlin 2.0.21 and JUnit 4.13.2.
+   The renderer and controller also compiled directly against the installed Android 37.0 API.
+   This is not an APK build or Android runtime verification. Seven-state capture tests have not run.
+5. Local environment: Android Studio installed by owner; setup wizard downloading SDK components.
+   Bundled Java is 25.0.4. Existing Minecraft Java 17.0.8 can launch Gradle 8.14.3, but is not a
+   conventional full JDK installation. Use a dedicated supported JDK for repeatable builds.
+6. Full build/regression/visual evidence: pending. Gradle starts but its daemon connection is
+   blocked in this execution environment. Direct Kotlin compilation works. Never claim an APK,
+   FPS result or reference comparison exists. Added a Gradle wrapper pinned to distribution
+   8.11.1 (bootstrap JAR from cached official Gradle 8.14.3, Apache license included), plus a
+   dedicated GitHub validation workflow with compilation, lint, tests and emulator captures.
+7. Next: finish SDK setup, install Android platform 35 and Build Tools 35.0.0, select JDK 17,
+   run testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest, then run instrumentation.
+8. Pull neural-evidence PNGs from app external files after NeuralRenderingTest, inspect each,
+   compare to recovered references, repair verified failures and rerun affected checks.
+9. On physical hardware verify STOP, voice ON/OFF, widget, accessibility approval/expiry,
+   provider configuration, file tools, resize, rotation, backgrounding and reduced motion.
+
+## Changelog
+
+- Recovered complete v0.7.0 application source and integration utility/tests.
+- Added bounded visual controller, explicit preview mode and procedural seven-state engine.
+- Integrated neural live activity alongside legacy fallback; retained all functional workspaces.
+- Changed shared visual palette to OLED black/cyan; preserved danger colours and readable controls.
+- Added controller and Android bitmap-capture tests. Reference, build and runtime verification pending.
+
+## Remaining visual limitations
+
+Canvas sphere geometry and bloom are an initial procedural implementation; high-detail reference
+fidelity is unverified. Infection setter updates are currently immediate within a state; state
+transitions progressively expose infection, but continuous parameter smoothing still needs work.
+External exploration has no live endpoint adapter yet, so live mode never invents connected apps.
+Conflict colour pressure is controllable but is not tied to real peer telemetry. Preview selection
+is a native dialog outside the circular scene. Functional task panels remain available for safety
+and compatibility rather than being rewritten as a new app shell.
+
+## Local API 35 validation and performance follow-up
+
+The stalled validation was recovered without terminating unrelated processes. Host diagnostics found
+no remaining project Gradle, UTP, Java test, or emulator process; only the shared ADB server remained.
+The retained UTP log recorded five passes and `DashboardSmokeTest.rotationPreservesStopPath` starting,
+but no failure. `Medium_Phone` was started cleanly, reported boot complete, was woken, and the debug
+app installed and visibly opened.
+
+Evidence is retained under `app/build/outputs/androidTest-results/connected/debug/`, including
+`Medium_Phone(AVD) - 15/testlog/test-results.log`, `Medium_Phone(AVD) - 15/utp.0.log`, and
+`TEST-Medium_Phone(AVD) - 15-_app-.xml`. Android Studio also retained detailed focused/full build
+transcripts as `shell-11.log` and `shell-12.log` in its session shell-log directory.
+
+With Java 21.0.11 selected explicitly, the focused command was:
+
+`gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.agentfold.app.DashboardSmokeTest#rotationPreservesStopPath --info --stacktrace --no-daemon`
+
+It completed in 1 minute 7 seconds: 1 passed, 0 failed, 0 skipped, 0 unfinished. The test itself
+completed about ten seconds after instrumentation began. There was no deadlock, lifecycle defect,
+UI-idleness wait, graphics starvation, ANR, or assertion failure. The prior symptom was Gradle/UTP
+continuing after the IDE tool's five-minute RPC timeout, followed by another invocation waiting behind
+it. No rotation or STOP-path code change was justified.
+
+The diagnostic full instrumentation suite completed in 2 minutes 14 seconds, and the final post-change
+suite completed in 1 minute 59 seconds: 20 passed, 0 failed, 0 skipped, 0 unfinished in each run. This
+includes all five PDF tests, the corrected runtime tool registry assertion, seven-state capture,
+workspace navigation, rotation and fixed-STOP checks. Unit tests also pass: 19 passed, 0 failed,
+0 skipped. Manual checks confirmed fallback selection, background/resume,
+reduced-motion rendering, and a visible fixed STOP control.
+
+Cold `am start -W -S` samples on `Medium_Phone` were 1458 ms before the allocation cleanup and
+2140 ms afterwards. These two emulator samples are noisy and do not demonstrate a startup-time
+improvement. Five-second `dumpsys gfxinfo` windows reported 24-25 ms median CPU frame time,
+18 ms median GPU time, and 1.24-1.55% modern frame-deadline misses after launch. The legacy jank
+percentage is not used because it applies a 16.7 ms threshold inconsistent with the emulator's
+observed cadence. No 60 FPS claim is made.
+
+Source inspection found avoidable draw-loop allocations rather than a lifecycle scheduling defect:
+`sliceArray()` allocated a temporary weight array every frame, `Typeface.create()` ran for every
+label, and pair-state gradients and their colour/position arrays were rebuilt for every strand on
+every frame. `NeuralDialView` now sums the four pair weights directly, caches the condensed typeface,
+reuses a balance-keyed `LinearGradient`, and moves an invariant arc bound update outside its loop.
+Geometry, seven states, transitions, black negative space, neural paths, firewall candles, preview
+simulation labels, reduced-motion handling and frame scheduling are unchanged.
+
+Reference-image fidelity remains UNVERIFIED until the real assets are recovered, inspected and
+compared. Physical Fold profiling and owner-driven voice, widget, accessibility, provider, permission
+and device-automation checks also remain outstanding; their implementations and security gates were
+not changed.
+
+## Integration-readiness cycle — 2026-11-13
+
+Branch `feature/neural-dial-ui`, remote branch and draft PR #2 were confirmed at checkpoint
+`2f0170b56895fa11f48bada8a699f75393f87fbb` before this cycle.
+Draft PR: <https://github.com/spirokopita/agentic-fold-test/pull/2>. Keep it draft; do not merge.
+The exact current PR body remains mirrored in `docs/DRAFT_PR.md`.
+
+### Fresh visual evidence and fidelity matrix
+
+The all-state capture test was rerun directly on `Medium_Phone` (API 35, x86_64) and passed 1/1 in
+18.664 seconds. Seven PNGs are retained under `docs/neural-evidence/`. Each capture is visibly labelled
+`simulation`; preview teardown and Activity recreation restore a non-preview snapshot.
+
+| Acceptance point | Implementation evidence | Actual reference comparison |
+| --- | --- | --- |
+| Pure black background / negative space | Present in all seven captures; thinking-field centre assertion passed | UNRESOLVED — source reference absent |
+| Extremely thin neon-blue circular boundaries | Present in thinking field and orb shells | UNRESOLVED — source reference absent |
+| Moving white thought packets | Packet positions render in thinking field, internal orbit and peer strands | UNRESOLVED — GIF source absent; static PNGs do not prove motion fidelity |
+| Internal 3D neural-sphere transformation | Projected meridians and neural branches visible in `internal_thinking.png` | UNRESOLVED — source reference absent |
+| External exploration and app-node connections | Authorised demo endpoint and curved connection visible in `external_exploration.png` | UNRESOLVED — source reference absent |
+| Blue local / red remote relationship | Distinct spheres visible in four peer-state captures | UNRESOLVED — source reference absent |
+| Neural connection strands | Braided blue/purple/red paths visible in peer-state captures | UNRESOLVED — source reference absent |
+| Separate firewall candle gauges | Separate blue/red simulated gauges render in peer-state captures | UNRESOLVED — source reference absent |
+| All seven states | Seven named implementation captures inspected | UNRESOLVED — none of the 24 manifest-listed binaries is accessible |
+
+The only loose candidates found were `C:\Users\spiro\Pictures\ai fold ref 1.png` (a human-brain
+dashboard) and `ai fold ref 5.png` (a multicolour flow diagram). Both were visually inspected and are
+not the manifest-listed seven-state neural-orb references, so they were not used to claim fidelity.
+
+### Bounded performance measurements
+
+Five API 35 emulator launch samples were recorded without clearing app data:
+
+- cold process starts, `TotalTime`: 4370, 1539, 1837, 1948, 1902 ms; median 1902 ms;
+- warm launches from Home, `WaitTime`: 98, 205, 144, 103, 105 ms; median 105 ms;
+- hot foreground launches, `WaitTime`: 26, 34, 27, 21, 30 ms; median 27 ms.
+
+During the seven-state transition/capture workload, `dumpsys gfxinfo` reported 644 frames, 178 modern
+deadline misses (27.64%), CPU frame time 40 ms median / 109 ms P95, and GPU time 16 ms median / 22 ms
+P95. In-flight `dumpsys meminfo` reported 59,928 KiB total PSS, 9,332 KiB Java-heap PSS and 29,472 KiB
+native-heap PSS. Renderer-reported graphics memory was 111.46 KiB CPU and 104.00 MiB GPU, of which
+73.94 MiB was purgeable. These emulator results demonstrate transition-load jank and do not establish
+60 FPS or physical-device performance. A per-frame allocation trace was not available, so source-level
+allocation removals are not presented as measured allocation counts.
+
+The capture test demonstrates every transition settled within its bounded 1.3-second observation
+window. The previously verified full suite remains the evidence for background/resume, navigation,
+rotation, reduced motion, fallback selection and STOP visibility. Fold/unfold cannot be measured on
+this fixed Medium_Phone emulator.
+
+### Safety and integration audit
+
+Search of all preview call sites confirms previews only call `NeuralController.preview` or
+`endPreview`. The controller owns visual data only and has no service, network, provider, permission
+or tool-dispatch dependency. The dialog title explicitly says `visual simulation — no network actions`.
+Live integration maps only public busy/idle runtime stages into thinking visuals. Voice, widget,
+accessibility service, phone-tool approvals, provider/file tools and fixed STOP remain separate and
+unchanged.
+
+Completed: API 35 build/install/launch, seven preview modes, focused rotation, 20-test final
+instrumentation suite, 19 unit tests, five PDF tests, fallback/reduced-motion/background checks,
+fresh capture inspection, emulator launch/frame/memory sampling, and preview isolation audit.
+
+Outstanding: authenticated draft PR creation; recovery of all 24 real reference assets; physical Fold
+CPU/GPU/allocation/battery/fold testing; owner voice/widget/TalkBack/live-provider/SAF/permission and
+device-automation checks; production signing/migration.
+
+**Exact next engineering action:** connect an authorised physical Fold, run the no-capture harness and
+Perfetto workload against its explicit serial without clearing app data, then recover
+`AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip` from the ChatGPT Library and perform the
+asset-by-asset visual/motion comparison before any fidelity-driven renderer changes.
+
+## Performance optimisation cycle — 2026-11-13
+
+Perfetto was recorded before code changes with the official recorder. The pre-change capture trace
+reported 201 main-thread `Record View#draw()` calls totalling 897.64 ms (4.47 ms average), but
+`postAndWait` totalled 14,321.72 ms (71.25 ms average). Frame timeline entries were dominated by
+SurfaceFlinger CPU deadline misses and buffer stuffing. This separates material emulator/HWUI
+synchronization from Kotlin draw-recording cost. The capture test also draws and compresses seven
+full-size PNGs on the Activity thread, so its historical 40 ms median / 109 ms P95 is not a pure
+renderer benchmark.
+
+A new `exerciseAllStatesWithoutCapture` instrumentation test exercises the identical seven states and
+1.3-second observation windows without bitmap creation or PNG compression. Three pre-change and three
+post-change runs used the same eight-second in-flight `dumpsys gfxinfo` sampling procedure:
+
+| No-capture three-run median | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| CPU frame median | 53 ms | 40 ms | -24.5% |
+| CPU frame P95 | 200 ms | 150 ms | -25.0% |
+| modern deadline-miss rate | 49.07% | 34.87% | -14.20 percentage points |
+| frames rendered in sample | 108 | 151 | +39.8% |
+| GPU frame median | 18 ms | 17 ms | effectively unchanged |
+
+The optimization preserves all lane, sample, strand and glow counts. It precomputes immutable sphere
+latitude sine/cosine terms and tendril envelopes, applies angle-addition identities for per-point
+sphere deformation, and advances evenly spaced tendril phases by recurrence rather than evaluating a
+sine for every sample. Fresh captures were inspected: both blue boundaries, independent white packets,
+sphere deformation, branches, app link, braided peer strands, infection progression, candles and
+simulation labels remain present.
+
+The single post-change traced PNG-capture sample was noisier than the pre-change trace, with
+`postAndWait` averaging 81.56 ms versus 71.25 ms. It is retained as evidence of emulator variability,
+not claimed as an improvement. GPU sentinel buckets of 4950 ms were emitted in some in-flight samples
+and are not treated as literal GPU durations. No 60 FPS claim is made. Full analysis and reproducible
+SQL are in `docs/PERFETTO_NEURAL_ANALYSIS.md`; raw 22.9/20.8 MB traces are retained locally under
+`app/build/reports/perfetto/` and excluded from Git.
+
+Post-change verification on `Medium_Phone` API 35:
+
+- unit tests: 19 passed, 0 failed, 0 skipped;
+- APK and Android-test APK assembly: passed;
+- focused capture workload: 1 passed;
+- no-capture harness: three direct runs passed;
+- complete instrumentation suite: 21 passed, 0 failed, 0 skipped, 0 unfinished in 2m44s;
+- all five PDF tests, rotation/STOP, navigation, fallback/lifecycle coverage and preview isolation remain green.
+
+Only `emulator-5554` was attached; no physical Fold was available. No physical install, permission,
+accessibility, provider or automation action was attempted. The reference archive and its named PNG/GIF
+members were searched in the project, Downloads, Documents and Desktop and remain inaccessible. The
+ChatGPT Library is outside this IDE session, so fidelity remains UNVERIFIED.
+
+## Live-signal audit and device-validation build — 2026-11-13
+
+The renderer remains downstream-only. `LiveVisualSignals.kt` maps public application telemetry to
+`VisualState` and activity intensity; it cannot start providers, tools, voice, permissions or device
+control. The audit produced this source-backed mapping:
+
+| Real event and source | Live visual response | Status |
+| --- | --- | --- |
+| Speech recognizer listening, `VoiceChatService.beginListening` | thinking field, activity 0.35 | Implemented in this cycle |
+| Recognized voice request being prepared, `VoiceChatService.onResults` | internal thinking, activity 0.65 until runtime telemetry takes precedence | Implemented in this cycle |
+| Text-to-speech reply, `VoiceChatService.say` | thinking field, activity 0.20 | Implemented in this cycle |
+| Planning/provider request/verification, `AgentRuntime` stages `PLANNING`, `MODEL`, `VERIFYING` | internal thinking, activity 0.80 | Already implemented; now expressed through the tested adapter |
+| Validated tool execution, `AgentRuntime` stage `TOOL` | internal thinking, activity 0.80 | Implemented; intentionally does not invent an external endpoint |
+| Completion, cancellation or failure, `AgentRuntime` stages `COMPLETED`, `CANCELLED`, `FAILED` | thinking field, activity 0 | Implemented |
+| Fixed STOP buttons, `MainActivity.stopWork`, followed by runtime/accessibility cancellation | exits any simulation immediately, resets to inactive thinking field, then revokes work | Strengthened and focused-tested |
+| External exploration endpoints, peer communication/conflict, infection and firewall metrics | no live mapping | Intentionally preview-only until truthful integrations exist |
+| Seven development previews, `NeuralController.preview` | selected simulated state with visible simulation labelling | Existing isolated development path |
+
+Voice phase changes are published through the existing main-thread `SessionStore` notification boundary.
+Runtime stages take precedence over voice phase. STOP now calls `endPreview()` before cancellation so an
+active-looking simulation cannot remain after revocation. No provider, tool, accessibility, permission,
+widget, file or legacy-renderer implementation was changed.
+
+Focused validation after this integration change:
+
+- `LiveVisualSignalsTest`: 3 passed, 0 failed, 0 skipped;
+- `DashboardSmokeTest.stopImmediatelyExitsDevelopmentPreview`: 1 passed on `emulator-5554`;
+- `DashboardSmokeTest.rotationPreservesStopPath`: 1 passed on `emulator-5554`;
+- `:app:assembleDebug`: passed;
+- delivery install and cold launch: passed; background/hot resume preserved the dashboard and STOP path;
+- the historical 21/21 instrumentation and 19/19 unit results remain evidence for unchanged areas and
+  were not rerun as complete suites.
+
+Delivery artifact (git-ignored):
+
+- path: `delivery/AgentFold-Recovery-0.7.0-debug.apk`;
+- SHA-256: `8cc1acc16c470b4a7f483a8859b4723dcd4d85e15ee4cb41311f73988defad53`;
+- size: 2,699,991 bytes;
+- application ID: `com.agentfold.app.recovery`;
+- version: 0.7.0 (version code 11); minimum Android 10 / API 29; target API 35;
+- signer: Android Debug, certificate SHA-256
+  `4303c489827fc98c319be33083de6f83199e017bfbf09b9bccf08295e7496718`.
+
+The installed emulator APK was pulled back and had the same byte size and certificate digest. This APK
+can update `com.agentfold.app.recovery` only when the installed package uses the same certificate and
+a compatible version code. It cannot update the legacy `com.agentfold.app` package, an owner-signed
+build or a build signed by another machine's debug key. Focused instrumentation had removed the prior
+test installation, so no real update conflict was encountered; installation succeeded without an
+uninstall or data-clear command.
+
+Only the API 35 Medium_Phone emulator was attached. Physical Fold validation remains pending. Exact
+non-destructive checklist: explicitly select the Fold serial; verify matching package/certificate;
+install with `adb -s SERIAL install -r`; launch and confirm STOP before interaction; inspect all seven
+simulation labels; press STOP from an active preview; background/resume; rotate; move between cover and
+inner displays; fold/unfold during a transition and while idle; confirm state/scroll recovery and no
+permission, accessibility, provider or automation activation. Preserve data and record screenshots,
+logcat and form-factor state for every failure.
+
+Reference fidelity remains UNVERIFIED because the actual 16 PNG and 8 GIF assets were not newly
+supplied or accessible. Owner-driven microphone permission/recognition, widget, TalkBack/accessibility,
+live provider, SAF export, sensitive permissions, device automation, owner signing and migration
+checks also remain pending.
+
+## Requirement reconciliation and visual completion pass — 2026-11-14
+
+The requirement-by-requirement source/evidence ledger is now
+`docs/NEURAL_REQUIREMENTS.md`. It explicitly separates verified emulator behaviour, implemented but
+unverified motion, incomplete real integrations, reference blockers and physical-device blockers.
+
+Fresh source and rendered-output inspection found four concrete deficiencies: uniform thinking-field
+spacing, a single-endpoint exploration preview, conflict dominated by a static gradient, and immediate
+infection/balance parameter jumps. The repaired renderer now:
+
+- uses cached independent phase, speed, sweep and radial-lane data for 32 thought packets, including
+  counter-moving packets;
+- presents six explicitly simulated peripheral endpoints with unavailable, installed, launchable and
+  integrated truth states; only integrated endpoints grow connections;
+- grows sampled cubic neural paths and secondary branches progressively without adding unbounded scene
+  complexity;
+- overlays bounded moving blue/purple/red pressure packets on the conflict braid;
+- smoothly follows activity, colour-balance and infection parameters while preserving the cached
+  trigonometric sphere/tendril work;
+- blends infection influence progressively across meridians and neural branches while retaining the
+  local blue or peer red shell identity.
+
+The seven state captures in `docs/neural-evidence/` were regenerated and visually inspected.
+`external_exploration.png` now shows the endpoint ring and two selective integrations;
+`conflict.png` shows local moving pressure colours; the two infection captures preserve exterior
+identity while the opposing colour spreads internally. Thinking-field packet geometry is visibly
+nonuniform. Static frames demonstrate structure, not reference motion fidelity.
+
+A deterministic focused instrumentation harness sampled all 42 directed state pairs at 220 ms into
+their transitions. Every pair retained visible geometry and no renderer failure. A rapid seven-state
+interruption sequence settled on the final requested state. Seven representative frames were retained
+under `docs/neural-evidence/transitions/` and inspected; they show blended geometry rather than blank
+resets. The focused test passed in 71.789 seconds.
+
+Responsive inspection used reversible emulator display overrides:
+
+- 904×2316 cover-like: circular renderer remained readable, visual controls stacked vertically, STOP
+  remained fixed and the scrollable operational content stayed reachable;
+- 2208×1840 inner-like: the adaptive two-pane workspace displayed an enlarged circular renderer beside
+  the mission pane and kept STOP fixed;
+- the emulator was restored to its physical 1080×2400 size afterwards.
+
+Renderer height now adapts to narrow, conventional and expanded window widths. A runtime renderer
+exception posts a one-shot callback that selects the existing legacy renderer; the manual switch
+remains separate. Automatic failure recovery is source-implemented but not fault-injection verified.
+
+STOP consistency was also repaired. A process-local generation signal carries no capability or task
+data; dashboard, notification and accessibility STOP paths publish it. A foreground Activity exits
+development preview on the next main-thread notification, and dashboard STOP also stops the voice
+service before runtime/accessibility cancellation. Focused notification-style STOP instrumentation
+passed 1/1.
+
+Fresh checks in this pass:
+
+- `NeuralControllerTest`: 4 passed, covering endpoint truth, preview reset, the full independent
+  control API and invalid-input clamping;
+- seven-state capture: 1 passed through Gradle/UTP and 1 passed through direct instrumentation;
+- all-pairs transition/rapid-interruption test: 1 passed;
+- notification-style visual STOP reset: 1 passed;
+- debug APK and Android-test APK assembly: passed.
+
+The complete unchanged suites were not rerun; the prior 21/21 instrumentation and 19/19 unit counts
+remain historical evidence. One in-flight no-capture sample after the detail pass reported 316 frames,
+85 ms CPU median, 150 ms P95, 213/316 deadline misses (67.41%), and 15/22 ms GPU median/P90. The GPU
+again emitted 4950 ms sentinel buckets. This single emulator sample is noisier than the earlier
+three-run median and is recorded as a possible regression/variability signal, not proof of improvement
+or a reason to remove required detail. Representative physical profiling remains required.
+
+### Reference access boundary
+
+`assets/ai-ui/chat-2026-11-13/README.md` remains a text manifest only. This session exposes no
+ChatGPT Library file connector or attachment-download API. Windows automation policy explicitly
+prohibits automating the ChatGPT desktop app, so the visible app cannot be used as a workaround.
+No original binary was inspected. Required transfer: download or attach
+`AgenticFold-AI-UI-All-Chat-Images-2026-11-13.zip` into this project-accessible environment, then
+verify its 16 PNG and 8 GIF inventory and compare representative GIF frames and all state images.
+Reference fidelity remains UNVERIFIED.
+
+Physical Fold posture/performance, owner voice/widget/TalkBack/live-provider/SAF/permission/automation,
+and reference fidelity remain incomplete. The overhaul must remain draft until those gates are
+actually exercised.
+
+## Renderer recovery and control-range verification — 2026-11-14
+
+The remaining locally testable renderer gates were exercised without adding a production failure
+control or changing scene complexity. The draw exception path now delegates to one private
+`handleRendererFailure` function. Focused instrumentation invokes that same handler reflectively,
+then verifies the neural View is hidden, the existing legacy activity View is visible, and the fixed
+STOP control remains visible. The isolated test passed 1/1 in 6.019 seconds on `emulator-5554`.
+
+A second isolated instrumentation test rendered nine control points:
+
+- conflict colour balance at 0%, 50% and 100%;
+- local infection at 0%, 50% and 100%;
+- peer infection at 0%, 50% and 100%.
+
+The test passed 1/1 in 21.578 seconds. It asserts that the conflict braid's visible red/blue
+distribution changes across the balance range, that local infection adds red internal structure
+while retaining blue identity, and that peer takeover adds blue internal structure while retaining
+red identity. All nine PNGs are retained under `docs/neural-evidence/control-sweeps/`; the six
+range endpoints were manually inspected. The images demonstrate rendered parameter response, not
+reference-image or motion-timing fidelity.
+
+Debug and Android-test APK assembly passed with the installed Java 21.0.11 runtime. Android Studio's
+bundled Java 25.0.4 remains incompatible with this Gradle setup and was not used for the successful
+build. Installation used `adb install -r` for both APKs without uninstalling or clearing app data.
+The full suites were not repeated because the production change only centralises the existing
+failure handler; historical 21/21 instrumentation and 19/19 unit results remain historical evidence.
+
+Still blocked: the original 16-PNG/8-GIF archive, an authorised physical Fold, representative device
+performance, and owner-dependent integrations. PR #2 must remain draft and unmerged.
+
+## Seven-state temporal evidence — 2026-11-14
+
+A focused test now samples every fully settled state twice, 280 ms apart. It computes a thresholded
+RGB delta over the circular View and requires meaningful visible change rather than relying on a
+running frame callback. The isolated test passed 1/1 in 23.777 seconds on the API 35 emulator.
+
+Seven side-by-side frame pairs are retained under `docs/neural-evidence/motion-pairs/` and were
+visually inspected. They show independently moving thinking packets, continuing internal sphere
+deformation and orbiting nodes, growing exploration paths, changing sphere neural geometry, travelling
+braid/pressure packets and flame sway. Both infection scenes continue to animate while retaining
+their exterior identity.
+
+This evidence verifies that each implementation state remains alive after its transition settles. It
+does not establish the intended source-GIF timing, physical-device cadence, or reference fidelity.
+Those claims remain blocked on transfer of the original archive and an authorised Fold.
+
+## Bounded no-capture performance repeat — 2026-11-14
+
+Three sequential no-capture runs were measured after resetting frame statistics inside each running
+instrumentation session. All three focused tests passed. The median result was 144 rendered frames,
+93 ms CPU-frame median, 150 ms CPU P95, 88.89% modern deadline misses, 17 ms GPU median and 24 ms GPU
+P90. Individual results and collection details are recorded in
+`docs/PERFETTO_NEURAL_ANALYSIS.md`.
+
+This is worse than the earlier 40 ms CPU median and 34.87% deadline-miss result, while GPU timing
+remains similar. It confirms an emulator regression signal but does not isolate renderer CPU work
+from emulator scheduling or HWUI synchronization. Removing required visual detail without a
+trace-backed cause would violate the acceptance criteria. Performance boundedness therefore remains
+implemented but unverified.
+
+### Installed-resource trace follow-up — 2026-11-15
+
+The interrupted Android Studio trace-processor launch was checked before retrying: no owned IDE shell
+session and no daemon process remained. The daemon initially failed because its required symbolizer
+path was omitted. With Android Studio's bundled `llvm-symbolizer.exe`, it started successfully,
+listened locally and shut down normally after the configured inactivity timeout.
+
+The emulator's built-in Perfetto recorder then captured the current no-capture workload. The focused
+test passed 1/1 in 18.412 seconds. The ignored trace is
+`app/build/reports/perfetto/neural-current-2026-11-15.perfetto-trace`, 1,197,430 bytes, SHA-256
+`14e86446a8b9f28e7b2d749a0841ebc459c6062417492fe8be19c1427cba9deb`.
+
+The bundled processor is a gRPC daemon. No installed `grpcurl`, `grpc_cli`, Python binding or
+standalone trace-processor shell is available, so the trace has not been submitted or queried.
+No current draw/VRI/`postAndWait` diagnosis is claimed and no production renderer edit was made.
+
+Exact next performance action: load the preserved trace through Android Studio's profiler client or
+an available compatible gRPC client, run the validated SQL in `PERFETTO_NEURAL_ANALYSIS.md`, and
+only then make a bottleneck-specific change. Repeat on an authorised physical Fold before any FPS
+claim.
