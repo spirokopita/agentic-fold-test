@@ -156,6 +156,13 @@ Three sequential focused no-capture workloads passed. Their median was 144 frame
 earlier post-trigonometry sample while GPU timing remains similar. It is recorded as an unresolved
 emulator regression signal, not a 60 FPS result or a reason to remove required neural detail.
 
-No production change was made: the current environment exposes no Perfetto recorder/trace-processor
-executable, so the main-thread/HWUI cause has not been re-isolated. A current trace and representative
-physical Fold measurement remain required before another performance repair.
+No production change was made. A follow-up installed-resource audit found the emulator's built-in
+Perfetto recorder and Android Studio's bundled gRPC trace-processor daemon plus LLVM symbolizer. The
+current no-capture workload passed 1/1 in 18.412 seconds under a 20-second trace. The ignored artifact
+is `app/build/reports/perfetto/neural-current-2026-11-15.perfetto-trace` (1,197,430 bytes,
+SHA-256 `14e86446a8b9f28e7b2d749a0841ebc459c6062417492fe8be19c1427cba9deb`).
+
+The daemon starts successfully, but no installed gRPC client, Python binding or standalone processor
+shell is available to submit and query the trace. Main-thread/HWUI attribution is therefore still
+unresolved. SQL analysis and representative physical Fold measurement remain required before another
+performance repair.

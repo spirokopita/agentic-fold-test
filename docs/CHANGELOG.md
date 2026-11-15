@@ -9,6 +9,7 @@
 - Added and inspected nine 0/50/100 control captures proving visible conflict-balance and bidirectional infection progression while retaining local/peer shell identity.
 - Verified every settled state continues to evolve over a 280 ms interval and retained seven inspected side-by-side temporal evidence pairs.
 - Repeated the no-capture workload three times; recorded a 93 ms CPU median, 150 ms P95 and 88.89% median deadline misses as an unresolved emulator regression signal, with no speculative renderer edit.
+- Captured and hashed a current 20-second app-scoped Perfetto trace using the emulator recorder; verified Android Studio's bundled daemon/symbolizer starts, while SQL analysis remains blocked by the absence of an installed gRPC client.
 
 ## Unreleased — neural dial performance follow-up (2026-11-13)
 

@@ -477,11 +477,27 @@ P90. Individual results and collection details are recorded in
 
 This is worse than the earlier 40 ms CPU median and 34.87% deadline-miss result, while GPU timing
 remains similar. It confirms an emulator regression signal but does not isolate renderer CPU work
-from emulator scheduling or HWUI synchronization. No production edit was made because a narrow
-lookup found no current Perfetto recorder/trace-processor executable in PATH or the installed SDK,
-and removing required visual detail without a trace-backed cause would violate the acceptance
-criteria. Performance boundedness therefore remains implemented but unverified.
+from emulator scheduling or HWUI synchronization. Removing required visual detail without a
+trace-backed cause would violate the acceptance criteria. Performance boundedness therefore remains
+implemented but unverified.
 
-Exact next performance action: acquire a supported Perfetto recorder and trace processor, trace this
-same no-capture workload, compare main-thread draw recording with `postAndWait`/VRI stalls, then make
-only a bottleneck-specific change. Repeat on an authorised physical Fold before any FPS claim.
+### Installed-resource trace follow-up — 2026-11-15
+
+The interrupted Android Studio trace-processor launch was checked before retrying: no owned IDE shell
+session and no daemon process remained. The daemon initially failed because its required symbolizer
+path was omitted. With Android Studio's bundled `llvm-symbolizer.exe`, it started successfully,
+listened locally and shut down normally after the configured inactivity timeout.
+
+The emulator's built-in Perfetto recorder then captured the current no-capture workload. The focused
+test passed 1/1 in 18.412 seconds. The ignored trace is
+`app/build/reports/perfetto/neural-current-2026-11-15.perfetto-trace`, 1,197,430 bytes, SHA-256
+`14e86446a8b9f28e7b2d749a0841ebc459c6062417492fe8be19c1427cba9deb`.
+
+The bundled processor is a gRPC daemon. No installed `grpcurl`, `grpc_cli`, Python binding or
+standalone trace-processor shell is available, so the trace has not been submitted or queried.
+No current draw/VRI/`postAndWait` diagnosis is claimed and no production renderer edit was made.
+
+Exact next performance action: load the preserved trace through Android Studio's profiler client or
+an available compatible gRPC client, run the validated SQL in `PERFETTO_NEURAL_ANALYSIS.md`, and
+only then make a bottleneck-specific change. Repeat on an authorised physical Fold before any FPS
+claim.

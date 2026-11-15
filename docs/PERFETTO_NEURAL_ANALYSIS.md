@@ -115,9 +115,40 @@ This is materially worse than the prior post-trigonometry median (40 ms CPU medi
 single noisy detail-pass result as an emulator regression signal, but does not identify whether the
 cause is renderer recording, emulator scheduling, or HWUI synchronization.
 
-A narrow lookup found no `record_android_trace` or `trace_processor_shell` executable in the current
-PATH or installed Android SDK. No new trace diagnosis is claimed and no scene detail was removed.
-The next justified performance action is to install/use a supported Perfetto recorder and processor,
-capture the current no-capture workload, and compare main-thread `Record View#draw()`,
-`draw-VRI[MainActivity]` and `postAndWait` slices. Representative Fold profiling remains required
-before accepting or rejecting design-preserving renderer changes.
+The standalone `record_android_trace` and `trace_processor_shell` executables are absent from PATH and
+the SDK. This statement was subsequently narrowed by the installed-resource investigation below:
+the emulator itself provides `perfetto`, and Android Studio bundles a gRPC trace-processor daemon.
+No scene detail was removed. Representative Fold profiling remains required before accepting or
+rejecting design-preserving renderer changes.
+
+## Installed-resource trace investigation — 2026-11-15
+
+The interrupted processor launch was audited before any restart. The IDE reported no owned shell
+session, and a name-only process check found no running `trace_processor_daemon`; the earlier attempt
+had not survived. Its startup failure was then reproduced exactly: Android Studio's daemon requires
+an explicit LLVM symbolizer path.
+
+Installed resources were sufficient to start the processor:
+
+- daemon: `C:\Program Files\Android\Android Studio\plugins\android\resources\trace_processor_daemon\trace_processor_daemon.exe`;
+- symbolizer: `C:\Program Files\Android\Android Studio\plugins\android-ndk\resources\lldb\bin\llvm-symbolizer.exe`;
+- verified startup: the daemon listened on `127.0.0.1:65341` and shut down normally after a
+  one-second inactivity timeout.
+
+The emulator's built-in Perfetto recorder captured a 20-second app-scoped trace using
+`sched gfx view wm am freq` while the no-capture instrumentation workload ran. The focused workload
+passed 1/1 in 18.412 seconds. Perfetto reported a normal connection to `traced` and wrote the trace:
+
+- ignored local path:
+  `app/build/reports/perfetto/neural-current-2026-11-15.perfetto-trace`;
+- size: 1,197,430 bytes;
+- SHA-256: `14e86446a8b9f28e7b2d749a0841ebc459c6062417492fe8be19c1427cba9deb`.
+
+Analysis is not yet complete. No installed `grpcurl` or `grpc_cli` is available, Python is absent,
+and the bundled daemon exposes gRPC rather than a standalone SQL CLI. Therefore the trace has not
+been submitted to the daemon and none of the validated SQL queries above has been run against it.
+No claim is made about current `Record View#draw()`, `postAndWait`, VRI or frame-timeline counts.
+
+Exact next performance action: open this trace through Android Studio's profiler client or provide a
+compatible installed gRPC/trace-processor client, run the recorded SQL queries, and only then decide
+whether a renderer change is justified. Physical Fold tracing remains mandatory before an FPS claim.
