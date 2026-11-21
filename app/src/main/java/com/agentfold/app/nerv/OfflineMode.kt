@@ -35,6 +35,7 @@ class OfflineMode(context: Context) {
         return try {
             connection = (URL("http://localhost:11434/api/tags").openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
+                instanceFollowRedirects = false
                 connectTimeout = 2000
                 readTimeout = 2000
             }

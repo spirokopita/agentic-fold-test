@@ -386,7 +386,9 @@ class MagiEngine(
 
         if (offlineMode.blocksProvider(node.provider)) return false
         return when (node.provider) {
-            ProviderKind.OPENAI, ProviderKind.XAI -> agentBridge.providerConfig() != null
+            ProviderKind.OPENAI, ProviderKind.XAI -> runCatching {
+                compatibleConfig(node)
+            }.isSuccess
             ProviderKind.LOCAL -> isLoopbackEndpoint(node.endpoint)
 
             ProviderKind.ANTHROPIC -> nodeKeyStore.hasKey(node.id)
@@ -394,10 +396,13 @@ class MagiEngine(
         }
     }
 
-    private fun isLoopbackEndpoint(url: String): Boolean = try {
-        val uri = java.net.URI(url)
-        (uri.scheme == "http" && EndpointPolicy.isLoopbackHost(uri.host)) || uri.scheme == "https"
-    } catch (_: Exception) { false }
+    private fun isLoopbackEndpoint(url: String): Boolean =
+        EndpointPolicy.isLoopbackEndpoint(url)
+
+    private fun compatibleConfig(node: NodeConfig): ProviderConfig =
+        NodeProviderPolicy.resolveCompatible(
+            node.endpoint, node.model, nodeKeyStore.read(node.id), agentBridge.providerConfig()
+        )
 
     private fun callProvider(
         node: NodeConfig, system: String, history: List<Pair<String, String>>, userText: String
@@ -435,15 +440,8 @@ class MagiEngine(
             }
             ProviderKind.OPENAI, ProviderKind.XAI -> {
 
-                val nodeKey = nodeKeyStore.read(node.id)
-                val shared = agentBridge.providerConfig()
-                val apiKey = nodeKey ?: shared?.apiKey
-                    ?: error("No API key for ${node.id.name}. Add one in SETUP — per node, or the shared provider key.")
-                val endpoint = if (node.endpoint.startsWith("https://")) node.endpoint
-                    else shared?.endpoint ?: error("No provider endpoint configured. Add one in SETUP first.")
-                val model = node.model.ifBlank { shared?.model ?: "" }
                 return completeViaCompatible(
-                    ProviderConfig(endpoint, model, apiKey), system, history, userText
+                    compatibleConfig(node), system, history, userText
                 )
             }
         }

@@ -16,7 +16,17 @@ data class ProviderConfig(val endpoint: String, val model: String, val apiKey: S
 object EndpointPolicy {
     fun isLoopbackHost(host: String?): Boolean =
         host.equals("localhost", ignoreCase = true) ||
-                host == "127.0.0.1" || host == "::1"
+                host == "127.0.0.1" || host == "::1" || host == "[::1]"
+    fun isLoopbackEndpoint(endpoint: String): Boolean = try {
+        val uri = URI(endpoint)
+        uri.scheme in listOf("http", "https") && isLoopbackHost(uri.host) &&
+            uri.userInfo == null && uri.query == null && uri.fragment == null
+    } catch (_: IllegalArgumentException) {
+        false
+    } catch (_: java.net.URISyntaxException) {
+        false
+    }
+
     fun validate(endpoint: String, model: String) {
         val uri = URI(endpoint)
         val loopbackHttp = uri.scheme == "http" && isLoopbackHost(uri.host)
