@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NERV voice widget layout (v11, item 13).
+     Paste as app/src/main/res/layout/nerv_voice_widget.xml
+     NERV amber (#ff9a1a) on black, like the app's own frame. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nerv_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/nerv_widget_bg"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/nerv_widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="NERV · MAGI"
+        android:textColor="#ff9a1a"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/nerv_widget_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="MAGI · IDLE"
+        android:textColor="#3dff7a"
+        android:textSize="12sp"
+        android:fontFamily="monospace" />
+
+    <TextView
+        android:id="@+id/nerv_widget_reply"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:text="Tap TALK and ask MAGI something."
+        android:textColor="#ff9a1a"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/nerv_widget_talk"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:padding="10dp"
+        android:gravity="center"
+        android:background="@drawable/nerv_widget_button_bg"
+        android:text="TALK ▸"
+        android:textColor="#ff9a1a"
+        android:textSize="14sp"
+        android:fontFamily="monospace"
+        android:textStyle="bold" />
+
+</LinearLayout>

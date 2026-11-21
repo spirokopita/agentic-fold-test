@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NERV voice widget info (v11, item 13).
+     Paste as app/src/main/res/xml/nerv_voice_widget_info.xml
+     updatePeriodMillis is 0 on purpose: NERV pushes updates itself
+     whenever MAGI answers or the voice state changes, instead of
+     waking the phone on a timer. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/nerv_voice_widget"
+    android:previewLayout="@layout/nerv_voice_widget"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

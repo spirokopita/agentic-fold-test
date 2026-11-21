@@ -1,0 +1,457 @@
+package de.rwth_aachen.phyphox.camera.analyzer;
+import static de.rwth_aachen.phyphox.camera.analyzer.OpenGLHelper.checkGLError;
+
+import android.graphics.RectF;
+import android.graphics.SurfaceTexture;
+import android.opengl.EGL14;
+import android.opengl.EGLConfig;
+import android.opengl.EGLContext;
+import android.opengl.EGLDisplay;
+import android.opengl.GLES20;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.util.Log;
+import android.view.Surface;
+import android.view.TextureView;
+
+import androidx.annotation.NonNull;
+import androidx.camera.core.Preview;
+import androidx.camera.core.SurfaceRequest;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
+
+import de.rwth_aachen.phyphox.DataBuffer;
+import de.rwth_aachen.phyphox.ExperimentTimeReference;
+import de.rwth_aachen.phyphox.camera.CameraInput;
+import de.rwth_aachen.phyphox.camera.model.CameraSettingState;
+import de.rwth_aachen.phyphox.camera.ui.CameraPreviewScreen;
+import kotlinx.coroutines.flow.StateFlow;
+
+public class AnalyzingOpenGLRenderer implements Preview.SurfaceProvider, SurfaceTexture.OnFrameAvailableListener {
+
+    public interface ExposureStatisticsListener {
+        void newExposureStatistics(double minRGB, double maxRGB, double meanLuma);
+    }
+
+    boolean running = false;
+    boolean surfaceTextureIsNew = false;
+
+    StateFlow<CameraSettingState> cameraSettingValueState;
+    Executor executor = Executors.newSingleThreadExecutor();
+    public int camNativeWidth = 0; // Size of the requested surface
+    public int camNativeHeight = 0;
+    public int camWidth = 0; // Size after applying the camera's transformation matrix
+    public int camHeight = 0;
+
+    EGLDisplay eglDisplay = null;
+    EGLContext eglContext = null;
+    EGLConfig eglConfig = null;
+    int eglCameraTexture = -1;
+    SurfaceTexture cameraSurfaceTexture = null;
+    Surface cameraSurface = null;
+
+    float[] camMatrix = new float[16];
+    float[] latestCamMatrix = new float[16];
+
+    ExposureStatisticsListener exposureStatisticsListener;
+
+    Lock dataLock;
+    List<AnalyzingModule> analyzingModules = new ArrayList<>();
+    ExposureAnalyzer exposureAnalyzer;
+    Deque<AnalyzingOpenGLRendererPreviewOutput> previewOutputs = new ConcurrentLinkedDeque<>();
+
+    public boolean measuring = false;
+    ExperimentTimeReference experimentTimeReference;
+    DataBuffer timeOutput;
+    long timeAdjustment = 0;
+    DataBuffer shutterSpeedOutput, apertureOutput, isoOutput;
+
+    Long lastPreviewFrame = 0L;
+
+    Boolean isFeaturePhotometry;
+    Boolean isFeatureSpectroscopy;
+
+    public AnalyzingOpenGLRenderer(CameraInput cameraInput, Lock lock, StateFlow<CameraSettingState> cameraSettingValueState, ExposureStatisticsListener exposureStatisticsListener) {
+        this.cameraSettingValueState = cameraSettingValueState;
+        this.experimentTimeReference = cameraInput.experimentTimeReference;
+
+        this.timeOutput = cameraInput.getDataT();
+
+        this.shutterSpeedOutput = cameraInput.getShutterSpeedDataBuffer();
+        this.apertureOutput = cameraInput.getApertureDataBuffer();
+        this.isoOutput = cameraInput.getIsoDataBuffer();
+
+        isFeaturePhotometry = cameraInput.isFeaturePhotometry();
+        isFeatureSpectroscopy = cameraInput.isFeatureSpectroscopy();
+
+        this.dataLock = lock;
+
+
+        if (cameraInput.getDataLuminance() != null) {
+            if(cameraInput.isFeaturePhotometry()){
+                analyzingModules.add(new LuminanceAnalyzer(cameraInput.getDataLuminance(), true));
+            }
+        }
+        if (cameraInput.getDataLuma() != null) {
+            analyzingModules.add(new LuminanceAnalyzer(cameraInput.getDataLuma(), false));
+        }
+        if (cameraInput.getDataHue() != null) {
+            analyzingModules.add(new HSVAnalyzer(cameraInput.getDataHue(), HSVAnalyzer.Mode.hue));
+        }
+        if (cameraInput.getDataSaturation() != null) {
+            analyzingModules.add(new HSVAnalyzer(cameraInput.getDataSaturation(), HSVAnalyzer.Mode.saturation));
+        }
+        if (cameraInput.getDataValue() != null) {
+            analyzingModules.add(new HSVAnalyzer(cameraInput.getDataValue(), HSVAnalyzer.Mode.value));
+        }
+        if(cameraInput.getDataPixelPosition() != null){
+            if(cameraInput.isFeatureSpectroscopy()){
+                analyzingModules.add(new SpectroscopyAnalyzer(
+                        cameraInput.getDataLuminance(),
+                        cameraInput.getDataPixelPosition(),
+                        cameraSettingValueState.getValue().getSpectrumAnalysisOrientation()));
+            }
+        }
+
+        this.exposureAnalyzer = new ExposureAnalyzer();
+        this.exposureStatisticsListener = exposureStatisticsListener;
+
+        AnalyzingOpenGLRendererPreviewOutput.executor = executor;
+    }
+
+    void createContext() {
+        eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
+        int[] version = new int[2];
+        EGL14.eglInitialize(eglDisplay, version, 0, version, 1);
+
+        int[] configAttr = {
+                EGL14.EGL_COLOR_BUFFER_TYPE, EGL14.EGL_RGB_BUFFER,
+                EGL14.EGL_LEVEL, 0,
+                EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+                EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT,
+                EGL14.EGL_LUMINANCE_SIZE, 0,
+                EGL14.EGL_RED_SIZE, 8,
+                EGL14.EGL_GREEN_SIZE, 8,
+                EGL14.EGL_BLUE_SIZE, 8,
+                EGL14.EGL_ALPHA_SIZE, 8,
+                EGL14.EGL_BUFFER_SIZE, 32,
+                EGL14.EGL_NONE
+        };
+
+        EGLConfig[] configs = new EGLConfig[1];
+        int[] numConfig = new int[1];
+        EGL14.eglChooseConfig(eglDisplay, configAttr, 0, configs, 0, 1, numConfig, 0);
+        if (numConfig[0] == 0) {
+            throw new RuntimeException("Could not create OpenGL context: No configuration found.");
+        }
+        eglConfig = configs[0];
+
+        int[] ctxAttrib = {
+                EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+                EGL14.EGL_NONE
+        };
+        eglContext = EGL14.eglCreateContext(eglDisplay, eglConfig, EGL14.EGL_NO_CONTEXT, ctxAttrib, 0);
+
+        EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, eglContext);
+
+        checkGLError("createContext");
+    }
+
+
+    public void releaseCameraSurface(Runnable callback) {
+        executor.execute(
+                () -> {
+                    if (cameraSurfaceTexture != null) {
+                        cameraSurfaceTexture.setOnFrameAvailableListener(null);
+                        cameraSurfaceTexture.release();
+                        cameraSurfaceTexture = null;
+                    }
+                    if (cameraSurface != null) {
+                        cameraSurface.release();
+                        cameraSurface = null;
+                    }
+                    checkGLError("releaseCameraSurface");
+                    callback.run();
+                }
+        );
+    }
+
+    public void prepareOpenGL(int w, int h) {
+        GLES20.glDisable(GLES20.GL_CULL_FACE);
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+        GLES20.glDisable(GLES20.GL_BLEND);
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+
+        OpenGLHelper.prepareFullScreenVertices();
+
+        AnalyzingModule.release();
+        AnalyzingModule.init(w, h, eglContext, eglDisplay, eglConfig, eglCameraTexture);
+        if (isFeaturePhotometry || isFeatureSpectroscopy) {
+            AnalyzingModule.photometrySetupGL(); // Required for auto exposure analysis and shared among photometry analyzers
+        }
+
+        checkGLError("prepareOpenGL");
+
+        for (AnalyzingModule analyzingModule : analyzingModules) {
+            analyzingModule.prepare();
+        }
+
+        exposureAnalyzer.prepare();
+
+        checkGLError("prepareOpenGL (modules)");
+
+        AnalyzingOpenGLRendererPreviewOutput.prepareOpenGL(eglContext, eglDisplay, eglConfig, eglCameraTexture);
+
+        checkGLError("prepareOpenGL (preview)");
+
+        running = true;
+    }
+
+    public void attachTexturePreviewView(CameraPreviewScreen cameraPreviewScreen) {
+        //Check if TV is already attached
+        TextureView attachingTV = cameraPreviewScreen.getPreviewTextureView();
+        for (AnalyzingOpenGLRendererPreviewOutput previewOutput : previewOutputs) {
+            CameraPreviewScreen screen = previewOutput.cameraPreviewScreen.get();
+            if (screen == null) {
+                previewOutputs.remove(previewOutput);
+                continue;
+            }
+            TextureView thisTV = screen.getPreviewTextureView();
+            if (thisTV == attachingTV) {
+                return;
+            }
+        }
+
+        AnalyzingOpenGLRendererPreviewOutput analyzingOpenGLRendererPreviewOutput = new AnalyzingOpenGLRendererPreviewOutput(cameraPreviewScreen);
+        TextureView previewTextureView = cameraPreviewScreen.getPreviewTextureView();
+        previewTextureView.setSurfaceTextureListener(analyzingOpenGLRendererPreviewOutput);
+
+        previewOutputs.add(analyzingOpenGLRendererPreviewOutput);
+
+        if (previewTextureView.isAvailable()) {
+            analyzingOpenGLRendererPreviewOutput.onSurfaceTextureAvailable(previewTextureView.getSurfaceTexture(), previewTextureView.getWidth(), previewTextureView.getHeight());
+        }
+    }
+
+    public void detachTexturePreviewView(CameraPreviewScreen cameraPreviewScreen) {
+        TextureView detachingTV = cameraPreviewScreen.getPreviewTextureView();
+        for (AnalyzingOpenGLRendererPreviewOutput previewOutput : previewOutputs) {
+            CameraPreviewScreen screen = previewOutput.cameraPreviewScreen.get();
+            if (screen == null) {
+                previewOutputs.remove(previewOutput);
+                continue;
+            }
+            TextureView thisTV = screen.getPreviewTextureView();
+            if (thisTV == detachingTV) {
+                previewOutputs.remove(previewOutput);
+            }
+        }
+    }
+
+    long renderingTotal = 0;
+    long nFrames = 0;
+
+    void writeToBuffers(double t, CameraSettingState state) {
+        for (AnalyzingModule analyzingModule : analyzingModules)
+            analyzingModule.writeToBuffers(state);
+        if (timeOutput != null)
+            timeOutput.append(t);
+        if (shutterSpeedOutput != null)
+            shutterSpeedOutput.append(state.getCurrentShutterValue()/1.0e9);
+        if (apertureOutput != null)
+            apertureOutput.append(state.getCurrentApertureValue());
+        if (isoOutput != null)
+            isoOutput.append(state.getCurrentIsoValue());
+    }
+
+    void draw() {
+        CameraSettingState state = cameraSettingValueState.getValue();
+        if (!running && !surfaceTextureIsNew)
+            return;
+        executor.execute(
+                () -> {
+                    if (eglContext == null || cameraSurfaceTexture == null)
+                        return;
+
+                    EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, eglContext);
+
+                    long start = System.nanoTime();
+
+                    cameraSurfaceTexture.updateTexImage();
+
+                    //The transform matrix has to be checked on every frame: It changes with a new surface texture, but a new texture may also report a default matrix until the first actual frame has arrived
+                    cameraSurfaceTexture.getTransformMatrix(latestCamMatrix);
+                    if (surfaceTextureIsNew || (running && !Arrays.equals(camMatrix, latestCamMatrix))) {
+                        System.arraycopy(latestCamMatrix, 0, camMatrix, 0, 16);
+                        int newCamWidth = Math.abs(Math.round(camMatrix[0] * camNativeWidth + camMatrix[1] * camNativeHeight));
+                        int newCamHeight = Math.abs(Math.round(camMatrix[4] * camNativeWidth + camMatrix[5] * camNativeHeight));
+                        Log.i("AnalyzingOpenGLRenderer", "camMatrix: " + Arrays.toString(camMatrix));
+
+                        //Only rebuild the GL setup if the effective camera size changed. A matrix change that keeps the size (like a shifted crop) must not tear down the analysis buffers mid-measurement.
+                        if (surfaceTextureIsNew || newCamWidth != camWidth || newCamHeight != camHeight) {
+                            camWidth = newCamWidth;
+                            camHeight = newCamHeight;
+                            Log.i("AnalyzingOpenGLRenderer", "native size: " + camNativeWidth + "x" + camNativeHeight + " => transformed cam size: " + camWidth + "x" + camHeight);
+
+                            prepareOpenGL(camWidth, camHeight);
+
+                            for (AnalyzingOpenGLRendererPreviewOutput previewOutput : previewOutputs) {
+                                CameraPreviewScreen screen = previewOutput.cameraPreviewScreen.get();
+                                if (screen != null && previewOutput.w > 0 && previewOutput.h > 0) {
+                                    final int w = previewOutput.w;
+                                    final int h = previewOutput.h;
+                                    new Handler(Looper.getMainLooper()).post(() -> screen.updateTransformation(w, h));
+                                }
+                            }
+
+                            surfaceTextureIsNew = false;
+                        }
+                    }
+
+                    if (!running)
+                        return;
+
+                    long reportedTime = cameraSurfaceTexture.getTimestamp();
+                    long timestampDelta = reportedTime + timeAdjustment - SystemClock.elapsedRealtimeNanos();
+                    if (Math.abs(timestampDelta) > 60e9) {
+                        //The reported time stamp is off by a whole minute. This is nonsense. The reported time is not even trying to relate to uptime, so we need to adjust the timestamps.
+                        timeAdjustment -= timestampDelta;
+                        Log.w("AnalyzingOpenGLRenderer", "timestampDelta too large: " + timestampDelta + ", timeAdjustment: " + timeAdjustment);
+                    }
+                    double t = experimentTimeReference.getExperimentTimeFromEvent(reportedTime + timeAdjustment);
+                    RectF passepartout = state.getCameraPassepartout();
+
+                    boolean dataNeedsToBeWrittenToBuffers = true;
+                    if (measuring) {
+                        for (AnalyzingModule analyzingModule : analyzingModules) {
+                            if (!running)
+                                return;
+                            analyzingModule.analyze(camMatrix, passepartout);
+                        }
+
+                        if (!running)
+                            return;
+
+                        if (dataLock.tryLock()) { //First try to write to buffers. If they available at the moment, draw preview first
+                            if (measuring) //This might have changed while analyzing
+                                writeToBuffers(t, state);
+                            dataNeedsToBeWrittenToBuffers = false;
+                            dataLock.unlock();
+                        }
+                    } else
+                        dataNeedsToBeWrittenToBuffers = false;
+
+                    if (!running)
+                        return;
+                    if (state.getAutoExposure()) {
+                        exposureAnalyzer.analyze(camMatrix, passepartout);
+                        if (exposureStatisticsListener != null)
+                            exposureStatisticsListener.newExposureStatistics(exposureAnalyzer.minRGB, exposureAnalyzer.maxRGB, exposureAnalyzer.meanLuma);
+                    } else
+                        exposureAnalyzer.reset();
+
+                    if (System.currentTimeMillis() - lastPreviewFrame > 1000/30) {
+                        for (AnalyzingOpenGLRendererPreviewOutput previewOutput : previewOutputs) {
+                            if (!running)
+                                return;
+                            previewOutput.draw(camMatrix, passepartout);
+                        }
+                        lastPreviewFrame = System.currentTimeMillis();
+                    }
+
+                    if (!running)
+                        return;
+                    if (dataNeedsToBeWrittenToBuffers && measuring) {
+                        dataLock.lock();
+                        if (measuring) //This might still have changed while waiting for the lock. In fact, if the user clears all data without explicitly stopping the measurement we would otherwise add old data to the freshly cleared buffers
+                            writeToBuffers(t, state);
+                        dataLock.unlock();
+                    }
+
+                    checkGLError("draw");
+
+                    if (measuring) {
+                        renderingTotal += System.nanoTime() - start;
+                        nFrames++;
+                    }
+
+                }
+        );
+    }
+
+    public void setSpectrumOrientation(SpectroscopyAnalyzer.SpectrumOrientation spectrumOrientation) {
+        executor.execute(() -> {
+            for (AnalyzingModule analyzingModule : analyzingModules) {
+                if (analyzingModule instanceof SpectroscopyAnalyzer) {
+                    ((SpectroscopyAnalyzer) analyzingModule).setAnalysisSpectrumOrientation(spectrumOrientation);
+                    if (AnalyzingModule.eglContext != null)
+                        analyzingModule.prepare();
+                }
+            }
+        });
+    }
+
+    @Override
+    public void onSurfaceRequested(@NonNull SurfaceRequest request) {
+        executor.execute(
+                () -> {
+                    if (eglContext == null)
+                        createContext();
+
+                    if (eglCameraTexture == -1) {
+                        int[] textures = new int[1];
+                        GLES20.glGenTextures(1, textures, 0);
+                        eglCameraTexture = textures[0];
+                    }
+                    checkGLError("Create eglCameraTexture");
+
+                    //Detach and release any leftover surface texture from a previous camera session, so its stray frames cannot trigger draw calls anymore
+                    if (cameraSurfaceTexture != null) {
+                        cameraSurfaceTexture.setOnFrameAvailableListener(null);
+                        cameraSurfaceTexture.release();
+                    }
+                    if (cameraSurface != null)
+                        cameraSurface.release();
+
+                    camNativeWidth = request.getResolution().getWidth();
+                    camNativeHeight = request.getResolution().getHeight();
+
+                    cameraSurfaceTexture = new SurfaceTexture(eglCameraTexture);
+                    cameraSurfaceTexture.setDefaultBufferSize(camNativeWidth, camNativeHeight);
+                    cameraSurfaceTexture.setOnFrameAvailableListener(this);
+                    cameraSurface = new Surface(cameraSurfaceTexture);
+                    //Only set surfaceTextureIsNew now that the new surface texture is in place: If it is set before this executor task runs, a draw call triggered by a late frame from the old camera would consume the flag and permanently cache the old camera's transform matrix
+                    surfaceTextureIsNew = true;
+                    request.provideSurface(cameraSurface, executor, result -> {
+                        Surface releasedSurface = result.getSurface();
+                        if (releasedSurface == cameraSurface) {
+                            releaseCameraSurface(()->{});
+                        } else {
+                            //This surface has already been replaced by a newer one, just make sure it is released
+                            releasedSurface.release();
+                        }
+                        checkGLError("destroy camera surface");
+                    });
+                    checkGLError("onSurfaceRequested");
+                }
+        );
+    }
+
+    @Override
+    public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+        draw();
+    }
+
+    public void shutdown() {
+        running = false;
+    }
+
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NERV lock widget info (v35, item 37).
+     Paste as app/src/main/res/xml/nerv_lock_widget_info.xml
+     updatePeriodMillis is 0 on purpose: NERV pushes updates itself
+     whenever the timer or MAGI line changes, instead of waking the
+     phone on a timer. The clock ticks on its own (TextClock).
+     widgetCategory asks for keyguard as well as home_screen, but on
+     Android 5.0 and later the system ignores the keyguard part for
+     third-party widgets — on a modern phone this widget only ever
+     lands on the home screen. The in-app lock screen is what shows
+     the same clock, timer and MAGI status without unlocking. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/nerv_lock_widget"
+    android:previewLayout="@layout/nerv_lock_widget"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="keyguard|home_screen" />

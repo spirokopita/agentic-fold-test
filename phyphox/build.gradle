@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+}
+android {
+    namespace 'de.rwth_aachen.phyphox'
+    compileSdk 35
+    defaultConfig {
+        minSdk 29
+        buildConfigField 'String', 'FLAVOR', '"regular"'
+        buildConfigField 'String[]', 'LOCALE_ARRAY', 'new String[]{"en","cs","de","el","es","fr","gu","hi","it","ja","ka","ko","nl","pl","pt","ru","sr","b+sr+Latn","ta","tr","vi","zh-rCN","zh-rTW"}'
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    kotlinOptions { jvmTarget = '21' }
+    externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt' } }
+    ndkVersion '28.0.13004108'
+    androidResources { ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!README.md' }
+}
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.google.android.material:material:1.13.0'
+    implementation 'androidx.annotation:annotation:1.9.1'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.appcompat:appcompat-resources:1.7.1'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.fragment:fragment:1.8.9'
+    implementation 'androidx.fragment:fragment-ktx:1.8.9'
+    implementation 'androidx.viewpager:viewpager:1.1.0'
+    implementation 'org.apache.commons:commons-io:1.3.2'
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    implementation 'net.freeutils:jlhttp:3.2'
+    implementation 'com.caverock:androidsvg:1.4'
+    implementation 'androidx.recyclerview:recyclerview-selection:1.2.0'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+    implementation 'androidx.camera:camera-core:1.4.2'
+    implementation 'androidx.camera:camera-camera2:1.4.2'
+    implementation 'androidx.camera:camera-lifecycle:1.4.2'
+    implementation 'androidx.camera:camera-view:1.4.2'
+}

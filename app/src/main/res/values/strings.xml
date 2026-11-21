@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Agent Fold</string>
+    <string name="control_name">Agent Fold control</string>
+    <string name="accessibility_description">Lets Agent Fold perform gestures only during a session you start and stop. Actions are logged locally. The floating Stop button revokes control.</string>
+    <string name="nerv_shortcut_open_magi">Open MAGI</string>
+    <string name="nerv_shortcut_start_timer">Start timer</string>
+    <string name="nerv_shortcut_start_timer_long">Start a timer</string>
+    <string name="nerv_shortcut_talk_magi">Talk to MAGI</string>
+</resources>

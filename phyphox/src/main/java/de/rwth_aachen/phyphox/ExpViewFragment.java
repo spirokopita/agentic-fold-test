@@ -1,0 +1,240 @@
+package de.rwth_aachen.phyphox;
+
+
+import android.animation.LayoutTransition;
+import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.fragment.app.Fragment;
+
+public class ExpViewFragment extends Fragment {
+    private static final String ARG_INDEX = "index";
+
+    private int index;
+    public CustomScrollableView root;
+    boolean hasExclusive;
+
+    //This falls under graphElement-> SpectroscopyCalibrationManager
+
+    public ExpViewFragment() {
+        // Required empty public constructor
+    }
+
+    //Apply zoom to all graphs on the current page.
+    public void applyZoom(double min, double max, boolean follow, String unit, String buffer, boolean yAxis, boolean absoluteTime) {
+        for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+            if (element.getClass() == ExpView.graphElement.class) {
+                ExpView.graphElement ge = (ExpView.graphElement)element;
+                ge.applyZoom(min, max, follow, unit, buffer, yAxis, absoluteTime);
+            }
+        }
+    }
+
+
+    public void disableScrolling(){
+        root.setScrollEnabled(false);
+    }
+
+    public void enableScrolling(){
+        root.setScrollEnabled(true);
+    }
+
+    public boolean hasExclusive() {
+        return hasExclusive;
+    }
+
+    //Let the activity update its back handling, which has to intercept the back action to
+    //leave the exclusive mode
+    private void notifyExclusiveChanged() {
+        if (getActivity() instanceof Experiment)
+            ((Experiment) getActivity()).updateBackCallbackState();
+    }
+
+    public void requestExclusive(ExpView.expViewElement caller) {
+        if (root == null)
+            return;
+        hasExclusive = true;
+        notifyExclusiveChanged();
+        root.setFillViewport(true);
+        LayoutTransition layoutTransition = new LayoutTransition();
+        layoutTransition.setDuration(150);
+        layoutTransition.setStartDelay(LayoutTransition.DISAPPEARING, 0);
+        layoutTransition.setStartDelay(LayoutTransition.CHANGE_DISAPPEARING, 0);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            layoutTransition.enableTransitionType(LayoutTransition.CHANGING);
+            layoutTransition.setStartDelay(LayoutTransition.CHANGING, 0);
+        }
+        LinearLayout ll = (LinearLayout)root.findViewById(R.id.experimentView);
+        ll.setLayoutTransition(layoutTransition);
+        for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+            if (element == caller) {
+                element.maximize();
+            } else {
+                element.hide();
+            }
+        }
+        ll.setLayoutTransition(null);
+    }
+
+    //Leave exclusive mode on behalf of the user (for example via back navigation), giving the
+    //maximized element the chance to intercept, i.e. a graph asking how a temporary zoom should
+    //be applied. Tapping the maximized element goes through the same logic via its click listener.
+    public void requestLeaveExclusive() {
+        if (!hasExclusive)
+            return;
+        if (getActivity() instanceof Experiment && ((Experiment) getActivity()).experiment != null && ((Experiment) getActivity()).experiment.experimentViews.size() > index) {
+            for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+                if (element.state == ExpView.State.maximized) {
+                    element.requestLeaveExclusive();
+                    return;
+                }
+            }
+        }
+        leaveExclusive();
+    }
+
+    public void leaveExclusive() {
+        hasExclusive = false;
+        notifyExclusiveChanged();
+        if (root == null)
+            return;
+        root.setFillViewport(false);
+        LayoutTransition layoutTransition = new LayoutTransition();
+        layoutTransition.setDuration(150);
+        layoutTransition.setStartDelay(LayoutTransition.APPEARING, 0);
+        layoutTransition.setStartDelay(LayoutTransition.CHANGE_APPEARING, 0);
+        layoutTransition.enableTransitionType(LayoutTransition.CHANGING);
+        layoutTransition.setStartDelay(LayoutTransition.CHANGING, 0);
+        LinearLayout ll = (LinearLayout)root.findViewById(R.id.experimentView);
+        ll.setLayoutTransition(layoutTransition);
+        for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+            element.restore();
+        }
+        ll.setLayoutTransition(null);
+    }
+
+    public static ExpViewFragment newInstance(int index) {
+        ExpViewFragment fragment = new ExpViewFragment();
+        Bundle args = new Bundle();
+        args.putInt(ARG_INDEX, index);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (getArguments() != null) {
+            index = getArguments().getInt(ARG_INDEX);
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+    }
+
+    public void recreateView() {
+        if (root == null)
+            return;
+        LinearLayout ll = (LinearLayout)root.findViewById(R.id.experimentView);
+        if (((Experiment)getActivity()).experiment != null && ((Experiment)getActivity()).experiment.experimentViews.size() > index) {
+            for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+                element.destroyView();
+            }
+        }
+        ll.removeAllViews();
+
+        root.setFillViewport(false);
+        hasExclusive = false;
+
+        if (((Experiment)getActivity()).experiment != null && ((Experiment)getActivity()).experiment.experimentViews.size() > index) {
+            for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+                element.createView(ll, getContext(), getResources(), this, ((Experiment) getActivity()).experiment);
+            }
+        }
+
+        if (((Experiment)getActivity()).experiment != null)
+            ((Experiment) getActivity()).experiment.updateViews(index, true);
+    }
+
+    @Override
+    public void setUserVisibleHint(boolean isVisibleToUser) {
+        super.setUserVisibleHint(isVisibleToUser);
+        if(isVisibleToUser) {
+            if (getActivity() != null && ((Experiment)getActivity()).experiment != null)
+                ((Experiment) getActivity()).experiment.updateViews(index, true);
+        } else {
+            leaveExclusive();
+        }
+    }
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        // Inflate the layout for this fragment
+        root = (CustomScrollableView)inflater.inflate(R.layout.fragment_exp_view, container, false);
+
+        final LinearLayout ll = (LinearLayout)root.findViewById(R.id.experimentView);
+        ll.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (hasFocus) {
+                    InputMethodManager imm = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(ll.getWindowToken(), 0);
+                }
+            }
+        });
+
+        return root;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if(getActivity() == null){
+            return;
+        }
+        recreateView();
+    }
+
+    public void onPause() {
+        super.onPause();
+        if(getActivity() == null){
+            return;
+        }
+        if (((Experiment)getActivity()).experiment != null && ((Experiment)getActivity()).experiment.experimentViews.size() > index) {
+            for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+                element.destroyView();
+            }
+        }
+    }
+
+    @Override
+    public void onStop() {
+        if (root == null)
+            return;
+        root.setFillViewport(false);
+
+        LinearLayout ll = (LinearLayout)root.findViewById(R.id.experimentView);
+        ll.removeAllViews();
+
+        if (((Experiment)getActivity()).experiment != null && ((Experiment)getActivity()).experiment.experimentViews.size() > index) {
+            for (ExpView.expViewElement element : ((Experiment) getActivity()).experiment.experimentViews.elementAt(index).elements) {
+                element.onFragmentStop(((Experiment) getActivity()).experiment);
+            }
+        }
+
+        super.onStop();
+    }
+
+}

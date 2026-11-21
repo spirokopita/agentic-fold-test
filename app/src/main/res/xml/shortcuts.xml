@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App shortcuts (v41, item 43) — long-press the NERV icon.
+     Paste as app/src/main/res/xml/shortcuts.xml
+     Three static shortcuts, each opening NervActivity with a
+     "nerv_shortcut" extra the activity already honours:
+     - Open MAGI: opens NERV on the MAGI screen.
+     - Start a timer: opens NERV on TIMER and starts the selected
+       timer (the first one, ACTIVATION, if none is picked) — or
+       restarts it if it had finished.
+     - Talk to MAGI: opens NERV and starts push-to-talk listening
+       straight away, through the same path as the voice widget.
+     A shortcut never skips the lock: if the phone is locked, the
+     MAGI vote (and PIN, if set) still comes first, and the shortcut
+     waits until access is granted — exactly like a widget tap.
+     AndroidManifest.xml, inside the NervActivity <activity> entry:
+         <meta-data
+             android:name="android.app.shortcuts"
+             android:resource="@xml/shortcuts" />
+     Static shortcuts appear on a long-press of the app icon on
+     Android 7.1 (API 25) and newer — no manual step, but the app
+     must have been opened at least once. Not yet run on the
+     emulator: long-press the NERV icon on the real phone and check
+     all three shortcuts open the right screen. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="nerv_open_magi"
+        android:enabled="true"
+        android:icon="@drawable/nerv_shortcut_icon"
+        android:shortcutShortLabel="@string/nerv_shortcut_open_magi"
+        android:shortcutLongLabel="@string/nerv_shortcut_open_magi">
+        <intent
+            android:action="com.agentfold.app.nerv.ACTION_SHORTCUT_OPEN_MAGI"
+            android:targetPackage="com.agentfold.app"
+            android:targetClass="com.agentfold.app.NervActivity">
+            <extra android:name="nerv_shortcut" android:value="magi" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="nerv_start_timer"
+        android:enabled="true"
+        android:icon="@drawable/nerv_shortcut_icon"
+        android:shortcutShortLabel="@string/nerv_shortcut_start_timer"
+        android:shortcutLongLabel="@string/nerv_shortcut_start_timer_long">
+        <intent
+            android:action="com.agentfold.app.nerv.ACTION_SHORTCUT_START_TIMER"
+            android:targetPackage="com.agentfold.app"
+            android:targetClass="com.agentfold.app.NervActivity">
+            <extra android:name="nerv_shortcut" android:value="timer" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="nerv_talk_magi"
+        android:enabled="true"
+        android:icon="@drawable/nerv_shortcut_icon"
+        android:shortcutShortLabel="@string/nerv_shortcut_talk_magi"
+        android:shortcutLongLabel="@string/nerv_shortcut_talk_magi">
+        <intent
+            android:action="com.agentfold.app.nerv.ACTION_SHORTCUT_TALK"
+            android:targetPackage="com.agentfold.app"
+            android:targetClass="com.agentfold.app.NervActivity">
+            <extra android:name="nerv_shortcut" android:value="listen" />
+        </intent>
+    </shortcut>
+</shortcuts>

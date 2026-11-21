@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NERV lock widget layout (v35, item 37).
+     Paste as app/src/main/res/layout/nerv_lock_widget.xml
+     NERV amber (#ff9a1a) on black, like the app's own frame.
+     The clock is a TextClock, so it ticks on its own without NERV
+     pushing updates. The timer and MAGI lines are pushed by
+     NervActivity whenever they change (see refreshLockWidget).
+     HONEST LIMIT: on modern Android this widget can only sit on the
+     home screen — the system does not allow third-party widgets on
+     the lock screen. The in-app lock screen shows the same three
+     lines without unlocking. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nerv_lock_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/nerv_widget_bg"
+    android:padding="12dp">
+
+    <TextClock
+        android:id="@+id/nerv_lock_clock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:format24Hour="HH:mm"
+        android:format12Hour="hh:mm a"
+        android:textColor="#ff9a1a"
+        android:textSize="28sp"
+        android:fontFamily="monospace"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/nerv_lock_timer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="NO TIMER RUNNING"
+        android:textColor="#ff9a1a"
+        android:textSize="12sp"
+        android:fontFamily="monospace" />
+
+    <TextView
+        android:id="@+id/nerv_lock_magi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="MAGI — NODES UNKNOWN"
+        android:textColor="#3dff7a"
+        android:textSize="12sp"
+        android:fontFamily="monospace" />
+
+</LinearLayout>

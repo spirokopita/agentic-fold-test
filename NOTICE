@@ -1,0 +1,5 @@
+This application incorporates phyphox 1.2.1 from https://github.com/phyphox/phyphox-android.
+Copyright 2016 Dr. Sebastian Staacks, 2nd Institute of Physics, RWTH Aachen University.
+phyphox and RWTH Aachen University names and logos are trademarks. This independently modified integration is not an official phyphox release.
+
+Upstream licences and component notices, including FFTW, are retained under phyphox/. The integration changes presentation and Android library packaging; the original sensor and analysis implementations are retained.
