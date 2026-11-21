@@ -1,0 +1,6 @@
+<resources>
+    <item name="objective_input" type="id" />
+    <item name="x_coordinate" type="id" />
+    <item name="y_coordinate" type="id" />
+    <item name="dashboard_scroll" type="id" />
+</resources>

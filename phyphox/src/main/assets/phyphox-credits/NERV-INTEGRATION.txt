@@ -1,0 +1,15 @@
+NERV embedded phyphox
+
+Engine: https://github.com/phyphox/phyphox-android (master / 45fa55a, v1.2.1)
+Experiment definitions: https://github.com/phyphox/phyphox-experiments (master)
+Remote assets: https://github.com/phyphox/phyphox-webinterface (master)
+Downloaded 21 November 2026. Upstream source is retained in this module.
+Copyright 2016 Dr. Sebastian Staacks, 2nd Institute of Physics, RWTH Aachen University.
+phyphox is GPL-3.0; see LICENSE and upstream README.md for component notices.
+phyphox and RWTH Aachen University names/logos are trademarks; this is an independently modified integration, not an official phyphox release.
+
+Local changes: Android library packaging for SDK 35/minSDK 29; private activities,
+host-relative export provider, NERV black/amber theme and monospace button styling,
+TOOLS launcher entry, host package lookup for export sharing. Original sensor,
+analysis, experiment, recording and graph implementations are preserved.
+The host app must be distributed in compliance with the included GPL licence.

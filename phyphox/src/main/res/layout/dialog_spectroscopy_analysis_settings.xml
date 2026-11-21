@@ -1,0 +1,66 @@
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/spectrum_analysis_setting"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/which_spectrum_orientation"
+        android:layout_marginBottom="16dp"
+        android:alpha="0.7" />
+
+    <ImageView
+        android:id="@+id/imgAnalysisOrientation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        app:tint="@null"
+        android:src="@drawable/spectrometer_orientation_landscape"
+        android:layout_marginBottom="16dp" />
+
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/axisToggle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:singleSelection="true"
+        app:selectionRequired="true"
+        app:checkedButton="@+id/btnLandscape">
+
+        <Button
+            android:id="@+id/btnLandscape"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            app:backgroundTint="@color/toggle_selector_background"
+            android:text="@string/landscape_orientation" />
+
+        <Button
+            android:id="@+id/btnPortrait"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            app:backgroundTint="@color/toggle_selector_background"
+            android:text="@string/portrait_orientation" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+</LinearLayout>
+
+</ScrollView>
