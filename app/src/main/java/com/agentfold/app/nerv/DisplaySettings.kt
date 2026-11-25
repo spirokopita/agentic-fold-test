@@ -1,5 +1,14 @@
 package com.agentfold.app.nerv
 
+// MAGI EVOLVER — five themes, 25 Nov 2026.
+// What changed in this file and why: PALETTES is now the five themes —
+// amber (NERV orange, default), cyberpunk, borg, mono, flesh. The old
+// names (cyan, alert, eva01) are gone. This list is the allowlist: the
+// palette getter and setter both fall back to "amber" for any name not
+// in it, so it HAD to change — without this, saving a new theme would
+// silently reset to amber, and a phone that still had "cyan" saved
+// would already fall back to amber. Nothing else changed.
+
 import android.content.Context
 
 class DisplaySettings(context: Context) {
@@ -8,7 +17,7 @@ class DisplaySettings(context: Context) {
         const val MIN_TEXT_SIZE_SP = 12
         const val MAX_TEXT_SIZE_SP = 20
         const val DEFAULT_TEXT_SIZE_SP = 14
-        val PALETTES = listOf("amber", "cyan", "alert", "eva01")
+        val PALETTES = listOf("amber", "cyberpunk", "borg", "mono", "flesh")
 
         val CUSTOM_ACCENTS = listOf(
             "GREEN" to 0xff3dff7a.toInt(),

@@ -1,5 +1,15 @@
 package com.agentfold.app.nerv
 
+// MAGI EVOLVER — Stage 1 (self-save), 25 Nov 2026.
+// What changed in this file and why:
+// - Backup now writes a skill's origin (TAUGHT/AUTO), useCount and
+//   lastUsedAt, and restore reads them back. Without this, a restore
+//   would silently turn every AUTO skill back into a TAUGHT one and wipe
+//   its usage history — and the auto-skill prune rule would lose the
+//   "oldest never used" information it runs on.
+// - Old backups without these fields still restore: origin defaults to
+//   TAUGHT, useCount to 0, lastUsedAt to 0. Nothing else changes.
+
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
@@ -358,6 +368,12 @@ class NervBackup(
                     .put("tools", tools)
                     .put("enabled", skill.enabled)
                     .put("taughtAt", skill.taughtAt)
+                    // EVOLVER: without these, a restore would turn every
+                    // AUTO skill back into a TAUGHT one and wipe its
+                    // usage history.
+                    .put("origin", skill.origin)
+                    .put("useCount", skill.useCount)
+                    .put("lastUsedAt", skill.lastUsedAt)
             )
         }
         root.put("taughtSkills", skills)
@@ -582,7 +598,12 @@ class NervBackup(
                     instruction = instruction,
                     tools = tools,
                     enabled = o.optBoolean("enabled", true),
-                    taughtAt = o.optString("taughtAt", "")
+                    taughtAt = o.optString("taughtAt", ""),
+                    // EVOLVER: old backups have none of these — origin
+                    // defaults to TAUGHT, counts to zero.
+                    origin = o.optString("origin", TaughtSkillStore.ORIGIN_TAUGHT),
+                    useCount = o.optInt("useCount", 0).coerceAtLeast(0),
+                    lastUsedAt = o.optLong("lastUsedAt", 0L).coerceAtLeast(0L)
                 )
             )
         }

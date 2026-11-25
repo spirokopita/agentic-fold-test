@@ -1,11 +1,29 @@
 package com.agentfold.app.nerv
 
+// MAGI EVOLVER — Stage 1 (self-save) + phyphox sensors, 25 Nov 2026.
+// What changed in this file and why:
+// - MagiResult gains a toolCalls field: every tool call MAGI made during
+//   this debate (name, arguments, result). It is empty for demo answers.
+//   The journal already kept a capped copy; this is the per-run record
+//   the evolver needs to judge a run, and it lives here rather than in a
+//   snapshot because the journal caps at 100 entries.
+// - converse() collects tool calls from all three node drafts into one
+//   shared list (nodes run on separate threads, so appends are
+//   synchronized) and hands it to MagiEvolver through the result.
+//   reviseNode / synthesize do not run tools, so nothing else changes.
+// - systemPrompt() appends toolRunner.sensorSection(): a short sensor
+//   section telling MAGI about the phyphox lab when the SENSORS pack is
+//   loaded, and telling it the pack is unloaded when it is not.
+// Nothing else in the debate flow changes — providers, votes, phone
+// tasks, calendar events and the LOCAL DEMO fallback are untouched.
+
 import android.content.Context
 import com.agentfold.app.agent.CompatibleProvider
 import com.agentfold.app.agent.EndpointPolicy
 import com.agentfold.app.agent.ProviderConfig
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MagiEngine(
@@ -42,7 +60,12 @@ class MagiEngine(
 
         val calendarEvent: String? = null,
 
-        val chairNode: NodeId? = null
+        val chairNode: NodeId? = null,
+
+        // EVOLVER: every tool call MAGI made during this debate, in
+        // order. Empty for demo answers. MagiEvolver reads this to track
+        // skill usage and to decide whether a run is worth auto-saving.
+        val toolCalls: List<ToolRunner.ToolCall> = emptyList()
     )
 
     val nodeNames = mapOf(
@@ -119,9 +142,14 @@ class MagiEngine(
             log.add("SYSTEM: OFFLINE MODE — cloud providers blocked; LOCAL (Ollama on this phone) only.")
         }
         val drafts = mutableMapOf<NodeId, NodeDraft>()
+        // EVOLVER: every tool call MAGI makes in this debate, collected
+        // for the evolver (usage tracking + auto-save). Nodes run on
+        // separate threads, so appends are synchronized in
+        // runToolsIfRequested.
+        val toolCalls = mutableListOf<ToolRunner.ToolCall>()
         val threads = enabled.map { node ->
             Thread {
-                val draft = draftNode(node, question, fullHistory)
+                val draft = draftNode(node, question, fullHistory, toolCalls)
                 synchronized(drafts) { drafts[node.id] = draft }
             }.also { it.start() }
         }
@@ -180,7 +208,7 @@ class MagiEngine(
         lastLogLines.clear(); lastLogLines.addAll(log)
 
         val chairNode = live.firstOrNull()?.node
-        return MagiResult(shownText, log, votePairs, localDemo, phoneTask, calendarEvent, chairNode)
+        return MagiResult(shownText, log, votePairs, localDemo, phoneTask, calendarEvent, chairNode, toolCalls.toList())
     }
 
     enum class VoteOutcome { APPROVE, DENY, ABSTAIN }
@@ -280,7 +308,7 @@ class MagiEngine(
             "answer with exactly one line: CALENDAR EVENT: <short title>. " +
             "The user checks the date, time and length first; nothing is " +
             "added until they approve it."
-        return base + personas[node.id] + " " + toolRunner.toolSystemPrompt() + taughtSection + phoneTaskSection + calendarSection
+        return base + personas[node.id] + " " + toolRunner.toolSystemPrompt() + taughtSection + phoneTaskSection + calendarSection + toolRunner.sensorSection()
     }
 
     private val phoneTaskLine = Regex("^PHONE TASK:\\s*(.+)$", RegexOption.MULTILINE)
@@ -303,10 +331,10 @@ class MagiEngine(
         return tasks.lastOrNull()?.take(500)
     }
 
-    private fun draftNode(node: NodeConfig, question: String, history: List<Pair<String, String>>): NodeDraft {
+    private fun draftNode(node: NodeConfig, question: String, history: List<Pair<String, String>>, toolCalls: MutableList<ToolRunner.ToolCall>? = null): NodeDraft {
         return try {
             val text = callProvider(node, systemPrompt(node), history, question)
-            NodeDraft(node.id, runToolsIfRequested(node, text, history, question), live = true)
+            NodeDraft(node.id, runToolsIfRequested(node, text, history, question, toolCalls), live = true)
         } catch (e: Exception) {
             NodeDraft(node.id, localDraft(node, question), live = false)
         }
@@ -349,7 +377,8 @@ class MagiEngine(
     }
 
     private fun runToolsIfRequested(
-        node: NodeConfig, firstReply: String, history: List<Pair<String, String>>, question: String
+        node: NodeConfig, firstReply: String, history: List<Pair<String, String>>, question: String,
+        toolCalls: MutableList<ToolRunner.ToolCall>? = null
     ): String {
         var reply = firstReply
         var rounds = 0
@@ -358,12 +387,27 @@ class MagiEngine(
             val name = match.groupValues[1].lowercase()
             val args = match.groupValues.getOrNull(2) ?: "{}"
             val result = toolRunner.run(name, args)
+            // EVOLVER: record the call for usage tracking and auto-save.
+            // Nodes run on separate threads, so the append is synchronized.
+            // Same ok rule as ToolRunner.run(): a result is an error when
+            // it starts with "error:". The full arguments are kept here
+            // (the journal copy is truncated) so the secret screen sees
+            // them; this list is never written to disk.
+            toolCalls?.let { list ->
+                synchronized(list) {
+                    list.add(ToolRunner.ToolCall(Date().toString(), name, args, result, !result.startsWith("error:")))
+                }
+            }
             rounds++
 
             reply = try {
                 callProvider(
                     node, systemPrompt(node), history,
-                    "TOOL_RESULT $name: ${result.take(1500)}\n\nQuestion: $question\nContinue with a final answer in plain text."
+                    // EVOLVER: tool results are fed back at 4000 chars, up
+                    // from 1500 — a mass-scan report runs to about 3,000
+                    // chars, and MAGI cannot read it at 1500. Still well
+                    // inside the ~24k token runtime budget.
+                    "TOOL_RESULT $name: ${result.take(4000)}\n\nQuestion: $question\nContinue with a final answer in plain text."
                 )
             } catch (_: Exception) {
                 "$reply\n\n[Tool $name result: ${result.take(300)}]"

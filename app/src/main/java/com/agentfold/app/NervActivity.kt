@@ -1,5 +1,16 @@
 package com.agentfold.app
 
+// MAGI EVOLVER — Stage 1 (self-save), 25 Nov 2026.
+// The only wiring in this file:
+// - A MagiEvolver field, built right after MagiEngine in onCreate, and
+//   one call in runMagiChat: after a debate finishes, evaluateAfterChat()
+//   tracks skill usage and may auto-save the run as a skill. A save gets
+//   one short toast in CHAT; nothing ever prompts for the save.
+// - The TAUGHT SKILLS box in SETUP shows auto-saved skills with an AUTO
+//   tag instead of TAUGHT, plus how often MAGI has used each skill.
+//   LOAD/UNLOAD and DELETE already work by skill id, so auto skills are
+//   managed exactly like taught skills — no new UI, no new screen.
+
 import android.Manifest
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
@@ -40,6 +51,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -70,6 +82,8 @@ import com.agentfold.app.nerv.NervLockWidget
 import com.agentfold.app.nerv.NervTileService
 import com.agentfold.app.nerv.LockSecurity
 import com.agentfold.app.nerv.MagiEngine
+import com.agentfold.app.nerv.MagiEvolver
+import com.agentfold.app.nerv.SensorHub
 import com.agentfold.app.nerv.MagiMemory
 import com.agentfold.app.nerv.NervStatus
 import com.agentfold.app.nerv.NodeKeyStore
@@ -114,11 +128,100 @@ class NervActivity : Activity() {
         Screen("setup", "設定", "SETUP"),
         Screen("clasp", "\u7d50", "CLASP")
     )
+    // EVOLVER — five themes (25 Nov 2026). Each theme is a full skin:
+    // colours, button/panel shape, animation feel — and, since the
+    // layout fix, a DIFFERENT screen arrangement. Each palette carries
+    // a ThemeLayout (AgentTheme.kt): amber keeps the NERV layout as on
+    // main today; cyberpunk is a sparse vertical layout; borg is a dense
+    // multi-panel layout with extra readouts; mono is a clean grid;
+    // flesh is an organic flowing layout. The PixelCanvas background is
+    // the SAME in every theme — only the styling and arrangement of what
+    // sits on it changes. "minimal" themes (cyberpunk, mono) also use a
+    // cleaner, sparser screen configuration: decorative widgets hidden
+    // or shrunk, panels given more breathing room. All features stay
+    // reachable in every theme — nothing is deleted, only arranged
+    // differently.
+    // Colours: accent, accentSecondary, muted, text, background, signal,
+    // danger, green. Shape: cornerRadiusDp, strokeWidthDp, fillAlpha
+    // (0x00 = flat fill, higher = a subtle accent-tinted fill), chamferDp
+    // (0 = normal corners; > 0 = cut corners — the octagon look of the
+    // cyberpunk and mono reference images). animFactor multiplies the
+    // battery-saver animation scale — it never overrides reduce-motion
+    // or battery saver.
+    private data class ThemePalette(
+        val name: String,
+        val accent: Int, val accentSecondary: Int, val muted: Int,
+        val text: Int, val background: Int, val signal: Int,
+        val danger: Int, val green: Int,
+        val cornerRadiusDp: Int, val strokeWidthDp: Int, val fillAlpha: Int,
+        val chamferDp: Int,
+        val animFactor: Float, val minimal: Boolean,
+        val layout: AgentTheme.ThemeLayout,
+        // EVOLVER (fonts): the theme's font configuration — display
+        // face, body face, styles, spacing, caps (AgentTheme.kt).
+        val font: AgentTheme.ThemeFont
+    )
+
     private val palettes = listOf(
-        "amber" to intArrayOf(0xffff9a1a.toInt(), 0xffff5a10.toInt(), 0xff5a3200.toInt()),
-        "cyan" to intArrayOf(0xff6fffe0.toInt(), 0xff2ad8c0.toInt(), 0xff0b4a42.toInt()),
-        "alert" to intArrayOf(0xffff3a2a.toInt(), 0xffff8a1a.toInt(), 0xff4a0c06.toInt()),
-        "eva01" to intArrayOf(0xffc58bff.toInt(), 0xff8dff4a.toInt(), 0xff2e1450.toInt())
+        // NERV orange — the default, exactly as it is today. The
+        // standard NERV layout, small radius, baseline animation.
+        ThemePalette(
+            "amber",
+            0xffff9a1a.toInt(), 0xffff5a10.toInt(), 0xff5a3200.toInt(),
+            0xffff9a1a.toInt(), 0xff000000.toInt(), 0xff6fffe0.toInt(),
+            0xffff2a1a.toInt(), 0xff3dff7a.toInt(),
+            2, 2, 0x00, 0, 1.0f, false, AgentTheme.standardLayout, AgentTheme.amberFont
+        ),
+        // Cyberpunk red — sharp 0dp corners, thin stroke, flat fill,
+        // fast animation, sparse vertical layout: big clock, single
+        // column of buttons, lots of empty black space. Signal is
+        // electric cyan: red and cyan is the cyberpunk pair, and "ok"
+        // still needs to read as different from the red accent.
+        ThemePalette(
+            "cyberpunk",
+            0xffff2a3c.toInt(), 0xffff2a8a.toInt(), 0xff571018.toInt(),
+            0xffff5566.toInt(), 0xff080000.toInt(), 0xff00e5ff.toInt(),
+            0xffff2a5e.toInt(), 0xff00e5ff.toInt(),
+            0, 1, 0x00, 8, 1.25f, true, AgentTheme.verticalLayout, AgentTheme.cyberpunkFont
+        ),
+        // Borg takeover green — sickly greens, dark, assimilation feel.
+        // Angular 0dp corners with a thick 3dp stroke: hard edges, no
+        // softness. Slow, relentless animation. Dense multi-panel
+        // layout: tight gaps, extra readout/progress bars, panels
+        // packed in.
+        ThemePalette(
+            "borg",
+            0xff7dff2a.toInt(), 0xff3dff7a.toInt(), 0xff1e3d0a.toInt(),
+            0xff9dff5e.toInt(), 0xff010603.toInt(), 0xffb6ff5e.toInt(),
+            0xffd4ff4d.toInt(), 0xff7dff2a.toInt(),
+            0, 3, 0x00, 6, 0.6f, false, AgentTheme.denseLayout, AgentTheme.borgFont
+        ),
+        // Futuristic black and white — monochrome. White text and
+        // accents on black, no colour anywhere: signal, danger and green
+        // are all white too. Clean grid layout: buttons and tiles in a
+        // strict 2-column grid, thin lines, lots of space. Calm animation.
+        ThemePalette(
+            "mono",
+            0xffffffff.toInt(), 0xffcccccc.toInt(), 0xff666666.toInt(),
+            0xffffffff.toInt(), 0xff000000.toInt(), 0xffffffff.toInt(),
+            0xffffffff.toInt(), 0xffffffff.toInt(),
+            0, 1, 0x00, 8, 0.8f, true, AgentTheme.gridLayout, AgentTheme.monoFont
+        ),
+        // Natural purple, organic and fleshy — deep purples, mauve, soft
+        // flesh-pink accents. Large rounded corners, subtle accent-tinted
+        // fill, slow breathing animation. Organic flowing layout:
+        // rounded panels in a staggered vertical flow, no straight grid.
+        // The stagger is large (28dp) so the panels curve down the
+        // screen in an S-flow like the reference image, and the clock
+        // is short (64dp) — in the flowing theme it sits small at the
+        // top right and the S-curve flows down from it.
+        ThemePalette(
+            "flesh",
+            0xffb388ff.toInt(), 0xffff9eb0.toInt(), 0xff4a2b5c.toInt(),
+            0xffd9b8ff.toInt(), 0xff0d0616.toInt(), 0xffffb8c6.toInt(),
+            0xffff6a8a.toInt(), 0xffffb8c6.toInt(),
+            12, 2, 0x14, 0, 0.9f, false, AgentTheme.flowLayout, AgentTheme.fleshFont
+        )
     )
     private val motions = listOf("SELFDESTRUCTION", "LAUNCH EVA-01", "OPEN SECTOR LINK", "SEAL GEOFRONT")
     private val eegChannels = listOf("TEMPORAL", "AMYGDALA", "HIPPOCAMPUS", "PARIETAL", "MOTOR", "SENSORY")
@@ -127,9 +230,15 @@ class NervActivity : Activity() {
 
     private lateinit var packStore: PackStore
     private lateinit var toolRunner: ToolRunner
+    // EVOLVER: the shared sensor hub — built before ToolRunner and passed
+    // in, so there is exactly one hub in the app.
+    private lateinit var sensorHub: SensorHub
     private lateinit var chatStore: ChatStore
     private lateinit var agentBridge: AgentBridge
     private lateinit var magiEngine: MagiEngine
+    // EVOLVER: the self-save loop — built right after MagiEngine, called
+    // once per finished CHAT debate in runMagiChat.
+    private lateinit var magiEvolver: MagiEvolver
 
     private lateinit var portManager: PortManager
     private lateinit var folderManager: FolderManager
@@ -510,7 +619,11 @@ class NervActivity : Activity() {
         calendarLink = CalendarLink(this)
 
         contactLookup = ContactLookup(this)
-        toolRunner = ToolRunner(this, packManager, noteStore, calendarLink, contactLookup)
+        // EVOLVER: the shared sensor hub is built before ToolRunner and
+        // passed in — one listener per sensor for the phyphox tool, the
+        // recorder and the scan.
+        sensorHub = SensorHub(this)
+        toolRunner = ToolRunner(this, packManager, noteStore, calendarLink, contactLookup, sensorHub)
         chatStore = ChatStore(this)
 
         chatFolderStore = ChatFolderStore(this, chatStore)
@@ -518,6 +631,8 @@ class NervActivity : Activity() {
         taughtSkillStore = TaughtSkillStore(this, packManager.availableTools().toSet())
         phoneTaskStore = PhoneTaskStore(this)
         magiEngine = MagiEngine(this, toolRunner, agentBridge, taughtSkillStore)
+        // EVOLVER: self-save loop, built right after MagiEngine.
+        magiEvolver = MagiEvolver(taughtSkillStore)
         portManager = PortManager(this)
         folderManager = FolderManager(this)
         voiceConnector = VoiceConnector(this)
@@ -811,7 +926,10 @@ class NervActivity : Activity() {
     }
 
     private fun frameDrawable(): GradientDrawable = GradientDrawable().apply {
-        setColor(Color.BLACK)
+        // EVOLVER: the phone frame fill follows the theme background
+        // (was hardcoded Color.BLACK, which would sit wrong on the
+        // purple-black flesh background).
+        setColor(AgentTheme.background)
         setStroke(dp(3), colorAccent())
         cornerRadius = dp(34).toFloat()
     }
@@ -819,10 +937,12 @@ class NervActivity : Activity() {
     private fun buildShell() {
 
         glowFrame = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#050200"))
+            // EVOLVER: was hardcoded "#050200" (orange-black). The glow
+            // frame now follows the theme background.
+            setBackgroundColor(AgentTheme.background)
 
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#050200"))
+                setColor(AgentTheme.background)
                 cornerRadius = dp(40).toFloat()
             }
             setPadding(dp(6), dp(6), dp(6), dp(6))
@@ -1072,9 +1192,12 @@ class NervActivity : Activity() {
         }
         val clockRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_HORIZONTAL
+            // EVOLVER (layout fix, flesh reference): in the flowing
+            // theme the clock sits small at the top right and the S-curve
+            // flows down from it — not a big centred clock.
+            gravity = if (AgentTheme.layout.kind == AgentTheme.ThemeLayoutKind.FLOW) Gravity.END else Gravity.CENTER_HORIZONTAL
         }
-        val clock = minchoText("", 50f, colorAccent()).apply {
+        val clock = minchoText("", if (AgentTheme.layout.kind == AgentTheme.ThemeLayoutKind.FLOW) 28f else AgentTheme.layout.clockSp, colorAccent()).apply {
             setShadowLayer(12f, 0f, 0f, colorAccent())
         }
         clockView = clock
@@ -1083,26 +1206,42 @@ class NervActivity : Activity() {
         clockRow.addView(msView)
         clockInner.addView(clockRow, FrameLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER })
         clockFrame.addView(clockInner, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
-        screenBody.addView(clockFrame, LinearLayout.LayoutParams(-1, dp(96)).apply { bottomMargin = dp(12) })
+        // EVOLVER (layout fix): clock size and frame height come from
+        // the active theme's layout — big in the sparse vertical theme,
+        // compact in the dense theme.
+        screenBody.addView(clockFrame, LinearLayout.LayoutParams(-1, dp(AgentTheme.layout.clockHeightDp)).apply { bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
 
-        val modeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf("STOP", "SLOW", "NORMAL", "RACING").forEachIndexed { index, mode ->
-            modeRow.addView(homeModeButton(mode, index == modeIndex) {
+        // EVOLVER (layout fix): borg shows its extra readout panels
+        // right under the clock — dense multi-panel layout, readouts
+        // everywhere, like the reference: system readout plus per-node
+        // link bars.
+        if (AgentTheme.layout.showExtraReadouts) {
+            screenBody.addView(layoutBorgReadoutPanel())
+            screenBody.addView(layoutNodeReadoutPanel())
+        }
+
+        // EVOLVER (layout fix): the mode buttons arrange by theme —
+        // one horizontal row (amber, borg), a single tall column
+        // (cyberpunk), a 2-column grid (mono), a staggered column
+        // (flesh). Same four buttons in every theme.
+        val modeNames = listOf("STOP", "SLOW", "NORMAL", "RACING")
+        val modeButtons = modeNames.mapIndexed { index, mode ->
+            homeModeButton(mode, index == modeIndex) {
                 modeIndex = index
                 showScreen("home")
-            }, LinearLayout.LayoutParams(0, dp(38), 1f).apply {
-                marginEnd = if (index == 3) 0 else dp(6)
-            })
+            }
         }
-        screenBody.addView(modeRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        screenBody.addView(layoutButtonRow(*modeButtons.toTypedArray()), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
 
         val wakeBox = borderedPanel()
         wakeBox.addView(boxHeading("HEY MAGI — VOICE COMMANDS"))
         wakeBox.addView(monoText(
             if (::wakeWord.isInitialized) wakeWord.statusLine(voiceListening) else "HEY MAGI: OFF",
             12f, if (voiceListening) colorDanger() else colorAccent()))
-        val wakeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        wakeRow.addView(shellButton(
+        // EVOLVER (layout fix): the two voice buttons arrange by theme
+        // like every other button row — side by side (amber, borg), a
+        // single column (cyberpunk, flesh), a 2-column grid (mono).
+        val wakeTalk = shellButton(
             if (voiceListening) "● STOP LISTENING"
             else "HEY MAGI ▸ TAP TO TALK"
         ) {
@@ -1121,16 +1260,20 @@ class NervActivity : Activity() {
                     }
                     .show()
             }
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
-        wakeRow.addView(shellButton(
+        }
+        val wakeToggle = shellButton(
             if (::wakeWord.isInitialized && wakeWord.enabled) "HEY MAGI: ON — TAP TO TURN OFF" else "HEY MAGI: OFF — TAP TO TURN ON"
         ) {
             wakeWord.enabled = !wakeWord.enabled
             showScreen("home")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4) })
-        wakeBox.addView(wakeRow)
+        }
+        wakeBox.addView(layoutButtonRow(wakeTalk, wakeToggle))
         screenBody.addView(wakeBox)
-        val gridCols = if (isDualPane()) 4 else 2
+        // EVOLVER (layout fix): tile columns come from the theme's
+        // layout — one full-width column (cyberpunk), strict 2-column
+        // grid (mono), 4 packed across (borg), 2 with a staggered
+        // offset on alternate tiles (flesh), dual-pane rule (amber).
+        val gridCols = layoutTileColumns()
         val grid = GridLayout(this).apply { columnCount = gridCols }
         screens.drop(1).filter { it.key != "clasp" }.forEachIndexed { index, screen ->
             val tile = ClippedTileLayout(this).apply {
@@ -1151,14 +1294,27 @@ class NervActivity : Activity() {
             tile.addView(monoText(screen.label, 11f, colorAccent()))
 
             val lastColumn = (index + 1) % gridCols == 0
+            // EVOLVER (layout fix): tile height comes from the theme's
+            // layout — large square grid cells (mono reference), tall
+            // full-width rows (cyberpunk), compact (borg), as today
+            // everywhere else.
+            val tileH = when (AgentTheme.layout.kind) {
+                AgentTheme.ThemeLayoutKind.GRID -> 120
+                AgentTheme.ThemeLayoutKind.VERTICAL -> 96
+                AgentTheme.ThemeLayoutKind.DENSE -> 64
+                else -> 72
+            }
+            // EVOLVER (layout fix): flesh staggers alternate tiles
+            // downward so the grid never reads as a straight grid.
+            val staggerTop = if (AgentTheme.layout.kind == AgentTheme.ThemeLayoutKind.FLOW && index % 2 == 1) dp(9) else 0
             grid.addView(tile, GridLayout.LayoutParams().apply {
                 width = 0
-                height = dp(72)
+                height = dp(tileH)
                 columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                setMargins(0, 0, if (lastColumn) 0 else dp(10), dp(10))
+                setMargins(0, staggerTop, if (lastColumn) 0 else dp(10), dp(10))
             })
         }
-        screenBody.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        screenBody.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
 
         val toxicity = borderedPanel()
 
@@ -1200,8 +1356,6 @@ class NervActivity : Activity() {
             })
         }
 
-        val wrap = android.widget.RelativeLayout(this)
-
         fun nodeBox(name: String, voteIndex: Int, clipMode: Int, voteTopMargin: Int): LinearLayout =
             MagiNodeLayout(this, clipMode).apply {
                 orientation = LinearLayout.VERTICAL
@@ -1228,23 +1382,18 @@ class NervActivity : Activity() {
                 isClickable = true
                 setOnClickListener { magiEngine.toggleVote(voteIndex); showScreen("magi") }
             }
-        val top = nodeBox("BALTHASAR·2", 1, 0, 10)
-        wrap.addView(top, android.widget.RelativeLayout.LayoutParams(dp(170), -2).apply {
-            addRule(android.widget.RelativeLayout.CENTER_HORIZONTAL); topMargin = dp(8)
-        })
-        val left = nodeBox("CASPER·3", 2, 1, 24)
-        wrap.addView(left, android.widget.RelativeLayout.LayoutParams(dp(170), -2).apply {
-            addRule(android.widget.RelativeLayout.ALIGN_PARENT_START)
-            addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM)
-            leftMargin = dp(8); bottomMargin = dp(8)
-        })
-        val right = nodeBox("MELCHIOR·1", 0, 2, 24)
-        wrap.addView(right, android.widget.RelativeLayout.LayoutParams(dp(170), -2).apply {
-            addRule(android.widget.RelativeLayout.ALIGN_PARENT_END)
-            addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM)
-            rightMargin = dp(8); bottomMargin = dp(8)
-        })
-
+        // EVOLVER (layout fix): the three node boxes arrange by theme.
+        // TRIANGLE (amber, borg): the NERV triangle as on main — one
+        // node top centre, two bottom, MAGI hub in the middle. STACK
+        // (cyberpunk): three full-width boxes in a single vertical
+        // column, hub centred between them. GRID (mono): a strict 2x2
+        // grid — two nodes top, one node + hub bottom. STAGGER (flesh):
+        // a vertical column with alternate boxes offset sideways, so
+        // the nodes flow instead of lining up. Same three boxes, same
+        // votes, same hub in every theme.
+        val melchior = nodeBox("MELCHIOR·1", 0, 2, 24)
+        val balthasar = nodeBox("BALTHASAR·2", 1, 0, 10)
+        val casper = nodeBox("CASPER·3", 2, 1, 24)
         val hub = minchoText("MAGI", 18f, AgentTheme.signal).apply {
             gravity = Gravity.CENTER
             setShadowLayer(8f, 0f, 0f, AgentTheme.signal)
@@ -1254,11 +1403,76 @@ class NervActivity : Activity() {
             }
             setPadding(dp(14), dp(4), dp(14), dp(4))
         }
-        wrap.addView(hub, android.widget.RelativeLayout.LayoutParams(-2, -2).apply {
-            addRule(android.widget.RelativeLayout.CENTER_IN_PARENT)
-        })
-        hub.translationY = -dp(10).toFloat()
-        screenBody.addView(wrap, LinearLayout.LayoutParams(-1, dp(330)).apply { topMargin = dp(4); bottomMargin = dp(8) })
+        when (AgentTheme.layout.nodeArrangement) {
+            AgentTheme.NodeArrangement.TRIANGLE -> {
+                val wrap = android.widget.RelativeLayout(this)
+                wrap.addView(balthasar, android.widget.RelativeLayout.LayoutParams(dp(170), -2).apply {
+                    addRule(android.widget.RelativeLayout.CENTER_HORIZONTAL); topMargin = dp(8)
+                })
+                wrap.addView(casper, android.widget.RelativeLayout.LayoutParams(dp(170), -2).apply {
+                    addRule(android.widget.RelativeLayout.ALIGN_PARENT_START)
+                    addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM)
+                    leftMargin = dp(8); bottomMargin = dp(8)
+                })
+                wrap.addView(melchior, android.widget.RelativeLayout.LayoutParams(dp(170), -2).apply {
+                    addRule(android.widget.RelativeLayout.ALIGN_PARENT_END)
+                    addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM)
+                    rightMargin = dp(8); bottomMargin = dp(8)
+                })
+                wrap.addView(hub, android.widget.RelativeLayout.LayoutParams(-2, -2).apply {
+                    addRule(android.widget.RelativeLayout.CENTER_IN_PARENT)
+                })
+                hub.translationY = -dp(10).toFloat()
+                screenBody.addView(wrap, LinearLayout.LayoutParams(-1, dp(330)).apply { topMargin = dp(4); bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
+            }
+            AgentTheme.NodeArrangement.STACK -> {
+                val stack = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                val gap = AgentTheme.layout.itemGapDp
+                stack.addView(melchior, LinearLayout.LayoutParams(-1, -2))
+                stack.addView(balthasar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(gap) })
+                val hubRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+                hubRow.addView(hub)
+                stack.addView(hubRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(gap); bottomMargin = dp(gap) })
+                stack.addView(casper, LinearLayout.LayoutParams(-1, -2))
+                screenBody.addView(stack, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
+            }
+            AgentTheme.NodeArrangement.GRID -> {
+                val grid = GridLayout(this).apply { columnCount = 2 }
+                fun cell(col: Int, row: Int): GridLayout.LayoutParams =
+                    GridLayout.LayoutParams().apply {
+                        width = 0
+                        height = -2
+                        columnSpec = GridLayout.spec(col, 1f)
+                        rowSpec = GridLayout.spec(row)
+                        setMargins(dp(4), dp(4), dp(4), dp(4))
+                    }
+                grid.addView(melchior, cell(0, 0))
+                grid.addView(balthasar, cell(1, 0))
+                grid.addView(casper, cell(0, 1))
+                val hubCell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+                hubCell.addView(hub)
+                grid.addView(hubCell, cell(1, 1))
+                screenBody.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
+            }
+            AgentTheme.NodeArrangement.STAGGER -> {
+                val flow = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                val gap = AgentTheme.layout.itemGapDp
+                val s = dp(AgentTheme.layout.staggerDp)
+                flow.addView(melchior, LinearLayout.LayoutParams(-1, -2).apply { marginEnd = s })
+                flow.addView(balthasar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(gap); marginStart = s })
+                val hubRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+                hubRow.addView(hub)
+                flow.addView(hubRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(gap); bottomMargin = dp(gap) })
+                flow.addView(casper, LinearLayout.LayoutParams(-1, -2).apply { marginEnd = s })
+                screenBody.addView(flow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
+            }
+        }
+
+        // EVOLVER (layout fix): borg shows its per-node link bars under
+        // the diagram — part of the dense multi-panel layout.
+        if (AgentTheme.layout.showExtraReadouts) {
+            screenBody.addView(layoutNodeReadoutPanel())
+        }
 
         val yes = magiEngine.votes.sum()
         val approved = yes >= 2
@@ -1276,17 +1490,18 @@ class NervActivity : Activity() {
             }
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
-        screenBody.addView(result, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(shellButton("RANDOMIZE") {
+        screenBody.addView(result, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
+        // EVOLVER (layout fix): the two action buttons arrange by theme
+        // like every other button row.
+        val randomizeButton = shellButton("RANDOMIZE") {
             magiEngine.randomizeVotes()
             showScreen("magi")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
-        row.addView(shellButton("ALL 承認") {
+        }
+        val allApproveButton = shellButton("ALL 承認") {
             magiEngine.allApprove()
             showScreen("magi")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
-        screenBody.addView(row)
+        }
+        screenBody.addView(layoutButtonRow(randomizeButton, allApproveButton))
 
         screenBody.addView(shellButton("NODE SETUP ▸") { showScreen("setup") },
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
@@ -1658,11 +1873,38 @@ class NervActivity : Activity() {
     private fun showSync() {
         screenBody.addView(title("同調", "PSYCHOGRAPHIC DISPLAY", "Phase 4"))
         val psych = PsychographView(this) { syncRatio }
-        psych.background = GradientDrawable().apply { setColor(AgentTheme.background); setStroke(dp(2), colorAccent()) }
-        screenBody.addView(psych, LinearLayout.LayoutParams(-1, dp(200)).apply { bottomMargin = dp(12) })
+        psych.background = AgentTheme.panel(this, AgentTheme.background, colorAccent())
+        val eeg = EEGView(this) { syncChannelAmps() }
+        eeg.background = AgentTheme.panel(this, AgentTheme.background, colorAccent())
+        // EVOLVER (layout fix): the two visualisations arrange by
+        // theme — side by side in the grid theme, stacked everywhere
+        // else, with heights from the layout (tall in the sparse
+        // vertical theme, compact in the dense theme). Minimal themes
+        // still shrink them instead of removing them — the numbers stay
+        // visible, just less dominant.
+        val layout = AgentTheme.layout
+        if (layout.kind == AgentTheme.ThemeLayoutKind.GRID) {
+            val vizRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            vizRow.addView(psych, LinearLayout.LayoutParams(0, dp(200), 1f).apply { marginEnd = dp(layout.itemGapDp) })
+            vizRow.addView(eeg, LinearLayout.LayoutParams(0, dp(200), 1f))
+            screenBody.addView(vizRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(layout.sectionGapDp) })
+        } else {
+            val psychH = when (layout.kind) {
+                AgentTheme.ThemeLayoutKind.VERTICAL -> 220
+                AgentTheme.ThemeLayoutKind.DENSE -> 140
+                else -> if (AgentTheme.minimal) 100 else 200
+            }
+            screenBody.addView(psych, LinearLayout.LayoutParams(-1, dp(psychH)).apply { bottomMargin = dp(layout.sectionGapDp) })
+        }
 
-        val modeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        modeRow.addView(monoText(if (syncLive) "● LIVE — RATIO FOLLOWS THIS PHONE" else "○ MANUAL — SLIDER SETS THE RATIO", 12f, colorAccent()), LinearLayout.LayoutParams(0, -2, 1f))
+        // EVOLVER (layout fix): in the sparse vertical theme the label
+        // sits above the button instead of beside it.
+        val vertical = layout.kind == AgentTheme.ThemeLayoutKind.VERTICAL
+        val modeRow = LinearLayout(this).apply {
+            orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            if (!vertical) gravity = Gravity.CENTER_VERTICAL
+        }
+        modeRow.addView(monoText(if (syncLive) "● LIVE — RATIO FOLLOWS THIS PHONE" else "○ MANUAL — SLIDER SETS THE RATIO", 12f, colorAccent()), LinearLayout.LayoutParams(if (vertical) -1 else 0, -2, if (vertical) 0f else 1f))
         modeRow.addView(shellButton(if (syncLive) "SWITCH TO MANUAL" else "SWITCH TO LIVE") {
             syncLive = !syncLive
             if (syncLive) {
@@ -1676,8 +1918,8 @@ class NervActivity : Activity() {
                 syncRatio = syncManualRatio
             }
             showScreen("sync")
-        })
-        screenBody.addView(modeRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        }, LinearLayout.LayoutParams(if (vertical) -1 else -2, -2).apply { if (vertical) topMargin = dp(layout.itemGapDp) })
+        screenBody.addView(modeRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(layout.sectionGapDp) })
 
         val syncRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         syncRow.addView(monoText("SYNC RATIO", 13f, colorAccent()))
@@ -1703,17 +1945,24 @@ class NervActivity : Activity() {
         syncSliderView = slider
         syncRow.addView(slider, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8); marginEnd = dp(8) })
         syncRow.addView(syncValue)
-        screenBody.addView(syncRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        screenBody.addView(syncRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(layout.sectionGapDp) })
 
         val liveBox = monoText("", 12f, colorAccentSecondary())
         syncLiveBoxView = liveBox
-        screenBody.addView(liveBox, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        screenBody.addView(liveBox, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(layout.sectionGapDp) })
         updateSyncViews()
 
-        val eeg = EEGView(this) { syncChannelAmps() }
-        eeg.background = GradientDrawable().apply { setColor(AgentTheme.background); setStroke(dp(2), colorAccent()) }
-        screenBody.addView(eeg, LinearLayout.LayoutParams(-1, dp(300)))
-        screenBody.addView(monoText("In LIVE mode each trace moves with its own signal: TEMPORAL follows CPU load, AMYGDALA follows battery drain, HIPPOCAMPUS follows memory pressure, PARIETAL follows the network, MOTOR follows charging, SENSORY follows the blend. MANUAL keeps the HTML slider behaviour.", 12f, colorAccentSecondary()), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        // In the grid theme the EEG is already in the side-by-side row
+        // above; everywhere else it goes here, stacked under the slider.
+        if (layout.kind != AgentTheme.ThemeLayoutKind.GRID) {
+            val eegH = when (layout.kind) {
+                AgentTheme.ThemeLayoutKind.VERTICAL -> 320
+                AgentTheme.ThemeLayoutKind.DENSE -> 200
+                else -> if (AgentTheme.minimal) 150 else 300
+            }
+            screenBody.addView(eeg, LinearLayout.LayoutParams(-1, dp(eegH)))
+        }
+        screenBody.addView(monoText("In LIVE mode each trace moves with its own signal: TEMPORAL follows CPU load, AMYGDALA follows battery drain, HIPPOCAMPUS follows memory pressure, PARIETAL follows the network, MOTOR follows charging, SENSORY follows the blend. MANUAL keeps the HTML slider behaviour.", 12f, colorAccentSecondary()), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(layout.sectionGapDp) })
     }
 
     private fun updateSyncViews() {
@@ -1797,20 +2046,23 @@ class NervActivity : Activity() {
                     start()
                 }
             }
-            screenBody.addView(plate, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            // EVOLVER (layout fix): plate gaps come from the theme's
+            // layout — tight in the dense theme, wide in the sparse one.
+            screenBody.addView(plate, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.itemGapDp) })
         }
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(shellButton("STRIKE RANDOM") {
+        // EVOLVER (layout fix): the two action buttons arrange by theme
+        // like every other button row.
+        val strikeButton = shellButton("STRIKE RANDOM") {
             armorDamaged[(Math.random() * 6).toInt()] = true
             updateHeaderStatus()
             showScreen("armor")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
-        row.addView(shellButton("REPAIR ALL") {
+        }
+        val repairButton = shellButton("REPAIR ALL") {
             for (i in armorDamaged.indices) armorDamaged[i] = false
             updateHeaderStatus()
             showScreen("armor")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
-        screenBody.addView(row)
+        }
+        screenBody.addView(layoutButtonRow(strikeButton, repairButton))
         screenBody.addView(monoText("Tap a plate to toggle it. The tools MAGI may use are switched in SETUP > PACKS — a pack holds the tools, and loading it switches them on.", 12f, colorAccentSecondary()), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
 
         showNotesSection()
@@ -2357,13 +2609,15 @@ class NervActivity : Activity() {
             val lastAi = chatStore.entries().lastOrNull { it.role == ChatStore.Role.AI && !it.deleted }
             val suggestions = lastAi?.let { SmartReplies.suggestionsFor(it.text) } ?: emptyList()
             if (suggestions.isNotEmpty()) {
-                val chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                suggestions.forEach { suggestion ->
-                    chipRow.addView(shellButton(suggestion) {
+                // EVOLVER (layout fix): the suggestion chips arrange by
+                // theme — a row (amber, borg), a single column
+                // (cyberpunk, flesh), a grid (mono).
+                val chips = suggestions.map { suggestion ->
+                    shellButton(suggestion) {
                         if (!chatBusy) runMagiChat(suggestion)
-                    }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+                    }
                 }
-                screenBody.addView(chipRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
+                screenBody.addView(layoutButtonRow(*chips.toTypedArray()), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
                 screenBody.addView(monoText(
                     "SMART REPLIES — MAGI's suggestions from its last answer. Tap one to send it, or ignore them and type your own.",
                     11f, colorAccentSecondary()
@@ -2387,7 +2641,6 @@ class NervActivity : Activity() {
             imeOptions = EditorInfo.IME_ACTION_SEND
             htmlInputStyle(this)
         }
-        sendRow.addView(input, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
         val sendAction = {
             val text = input.text.toString().trim()
             if (text.isNotEmpty() && !chatBusy) {
@@ -2395,8 +2648,17 @@ class NervActivity : Activity() {
                 runMagiChat(text)
             }
         }
-        sendRow.addView(shellButton("SEND") { sendAction() }, LinearLayout.LayoutParams(dp(70), -2))
-        screenBody.addView(sendRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        // EVOLVER (layout fix): in the sparse vertical theme the message
+        // box sits above a full-width SEND button; everywhere else the
+        // box and SEND sit side by side as today.
+        if (AgentTheme.layout.kind == AgentTheme.ThemeLayoutKind.VERTICAL) {
+            screenBody.addView(input, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.itemGapDp) })
+            screenBody.addView(shellButton("SEND") { sendAction() }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        } else {
+            sendRow.addView(input, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+            sendRow.addView(shellButton("SEND") { sendAction() }, LinearLayout.LayoutParams(dp(70), -2))
+            screenBody.addView(sendRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        }
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) { sendAction(); true } else false
         }
@@ -2462,59 +2724,54 @@ class NervActivity : Activity() {
             }
         }
 
-        val folderActionRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        folderActionRow.addView(shellButton("CHAT FOLDERS ▸") { showManageChatFoldersDialog() },
-            LinearLayout.LayoutParams(0, -2, 1f))
-        screenBody.addView(folderActionRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
-        val actionRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        actionRow.addView(shellButton("VIEW DELIBERATION LOG") {
+        // EVOLVER (layout fix): the action buttons below the chat
+        // arrange by theme — rows (amber, borg), a single column
+        // (cyberpunk, flesh), a grid (mono). Same buttons, same order.
+        screenBody.addView(layoutButtonRow(shellButton("CHAT FOLDERS ▸") { showManageChatFoldersDialog() }),
+            LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        val logButton = shellButton("VIEW DELIBERATION LOG") {
             val log = chatStore.lastAiLog()
             AlertDialog.Builder(this)
                 .setTitle("DELIBERATION LOG")
                 .setMessage(if (log.isEmpty()) "No debate yet — send a message first." else log.joinToString("\n\n"))
                 .setPositiveButton("CLOSE", null)
                 .show()
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
-        actionRow.addView(shellButton("CLEAR CHAT") {
+        }
+        val clearButton = shellButton("CLEAR CHAT") {
             chatStore.clear()
             chatSearchQuery = null
             chatHighlightIndex = -1
             showScreen("comms")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4) })
-        screenBody.addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        }
+        screenBody.addView(layoutButtonRow(logButton, clearButton),
+            LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
 
-        val teachRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        teachRow.addView(shellButton("TEACH MAGI ▸") { showTeachDialog() },
-            LinearLayout.LayoutParams(0, -2, 1f))
-        screenBody.addView(teachRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        screenBody.addView(layoutButtonRow(shellButton("TEACH MAGI ▸") { showTeachDialog() }),
+            LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
 
-        val agentRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        agentRow.addView(shellButton("RUN AS AGENT TASK ▸") { runAgentTaskFromChat() },
-            LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
-        agentRow.addView(shellButton("STOP") {
+        val agentTaskButton = shellButton("RUN AS AGENT TASK ▸") { runAgentTaskFromChat() }
+        val agentStopButton = shellButton("STOP") {
             agentBridge.stop()
             if (current == "comms") showScreen("comms")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4) })
-        screenBody.addView(agentRow)
+        }
+        screenBody.addView(layoutButtonRow(agentTaskButton, agentStopButton))
 
         showPhoneTasksBox()
 
-        val voiceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        voiceRow.addView(shellButton(if (voiceListening) "LISTENING…" else "VOICE LISTEN ▸") {
+        val voiceListenButton = shellButton(if (voiceListening) "LISTENING…" else "VOICE LISTEN ▸") {
             startVoiceListen()
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
-        voiceRow.addView(shellButton("SPEAK REPLIES: ${if (magiVoice.enabled) "ON" else "OFF"}") {
+        }
+        val speakButton = shellButton("SPEAK REPLIES: ${if (magiVoice.enabled) "ON" else "OFF"}") {
             magiVoice.enabled = !magiVoice.enabled
             showScreen("comms")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4) })
-        screenBody.addView(voiceRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        }
+        screenBody.addView(layoutButtonRow(voiceListenButton, speakButton),
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
 
-        val smartRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        smartRow.addView(shellButton("SMART REPLIES: ${if (smartReplies.enabled) "ON" else "OFF"}") {
+        screenBody.addView(layoutButtonRow(shellButton("SMART REPLIES: ${if (smartReplies.enabled) "ON" else "OFF"}") {
             smartReplies.enabled = !smartReplies.enabled
             showScreen("comms")
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        screenBody.addView(smartRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        }), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         screenBody.addView(monoText(
             "Chat runs MagiEngine. ANTHROPIC (Claude), CHATGPT, GROK and LOCAL (Ollama) nodes all answer for real now — " +
             "give each node its own key in SETUP. With no provider configured the replies are LOCAL DEMO drafts. " +
@@ -2753,6 +3010,12 @@ class NervActivity : Activity() {
 
             magiMemory.rememberDebate(text, result)
 
+            // EVOLVER: usage tracking + auto-save. Runs on this background
+            // thread, never prompts — a save returns one short note, shown
+            // as a toast in CHAT below. Routines never reach here; only
+            // CHAT debates do.
+            val evolverNote = magiEvolver.evaluateAfterChat(text, result)
+
             debateHistory.record(text, result)
             val replyTime = timeFmtHHmm.format(Date())
             chatStore.add(
@@ -2772,6 +3035,11 @@ class NervActivity : Activity() {
                     magiVoice.speak(result.chairNode ?: MagiEngine.NodeId.MELCHIOR, result.text)
                 }
                 if (current == "comms") showScreen("comms")
+
+                // EVOLVER: one short toast when MAGI saved a new skill by
+                // itself. No prompt, no action needed — the skill is in
+                // SETUP > TAUGHT SKILLS with an AUTO tag.
+                if (evolverNote != null) Toast.makeText(this, evolverNote, Toast.LENGTH_LONG).show()
 
                 val proposed = result.phoneTask?.let { phoneTaskStore.propose(it, text) }
 
@@ -2959,8 +3227,14 @@ class NervActivity : Activity() {
         val elapsed = 120 + (System.currentTimeMillis() - toxStartTime) / 60000
         screenBody.addView(title("毒性", "MENTAL TOXICITY LEVEL", "ELAPSED $elapsed min."))
 
-        val modeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        modeRow.addView(monoText(if (toxLive) "● LIVE — BARS FOLLOW THIS PHONE" else "○ MANUAL — BARS DRIFT BY HAND", 12f, colorAccent()), LinearLayout.LayoutParams(0, -2, 1f))
+        // EVOLVER (layout fix): in the sparse vertical theme the label
+        // sits above the button instead of beside it.
+        val toxVertical = AgentTheme.layout.kind == AgentTheme.ThemeLayoutKind.VERTICAL
+        val modeRow = LinearLayout(this).apply {
+            orientation = if (toxVertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            if (!toxVertical) gravity = Gravity.CENTER_VERTICAL
+        }
+        modeRow.addView(monoText(if (toxLive) "● LIVE — BARS FOLLOW THIS PHONE" else "○ MANUAL — BARS DRIFT BY HAND", 12f, colorAccent()), LinearLayout.LayoutParams(if (toxVertical) -1 else 0, -2, if (toxVertical) 0f else 1f))
         modeRow.addView(shellButton(if (toxLive) "SWITCH TO MANUAL" else "SWITCH TO LIVE") {
             toxLive = !toxLive
             if (toxLive) {
@@ -2974,8 +3248,8 @@ class NervActivity : Activity() {
                 }
             }
             showScreen("tox")
-        })
-        screenBody.addView(modeRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        }, LinearLayout.LayoutParams(if (toxVertical) -1 else -2, -2).apply { if (toxVertical) topMargin = dp(AgentTheme.layout.itemGapDp) })
+        screenBody.addView(modeRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
         val panel = borderedPanel()
         listOf("00 FIRST", "01 THIRD", "02 SECOND").forEachIndexed { i, name ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -3023,8 +3297,9 @@ class NervActivity : Activity() {
         healthPanel.addView(healthWarnings)
         screenBody.addView(healthPanel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
         updateToxScreen()
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(shellButton("INJECT +15") {
+        // EVOLVER (layout fix): the two action buttons arrange by theme
+        // like every other button row.
+        val injectButton = shellButton("INJECT +15") {
             if (toxLive) {
 
                 for (i in toxOffsets.indices) toxOffsets[i] = (toxOffsets[i] + 15).coerceAtMost(85)
@@ -3032,8 +3307,8 @@ class NervActivity : Activity() {
                 for (i in toxScreenValues.indices) toxScreenValues[i] = minOf(100, toxScreenValues[i] + 15)
             }
             updateToxScreen()
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
-        row.addView(shellButton("PURGE") {
+        }
+        val purgeButton = shellButton("PURGE") {
             if (toxLive) {
 
                 for (i in toxOffsets.indices) toxOffsets[i] = 10 - toxScreenValues[i]
@@ -3041,8 +3316,8 @@ class NervActivity : Activity() {
                 for (i in toxScreenValues.indices) toxScreenValues[i] = 10
             }
             updateToxScreen()
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
-        screenBody.addView(row)
+        }
+        screenBody.addView(layoutButtonRow(injectButton, purgeButton))
         screenBody.addView(monoText(if (toxLive) "LIVE — bars follow this phone's battery, CPU load and memory. INJECT and PURGE are a temporary nudge; the bars drift back to the live values." else "MANUAL — bars drift by hand, like the HTML. Switch to LIVE to follow this phone.", 12f, colorAccentSecondary()))
     }
 
@@ -3125,7 +3400,15 @@ class NervActivity : Activity() {
             setShadowLayer(12f, 0f, 0f, colorAccent())
         }
         clockFrame.addView(timerValueView, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
-        screenBody.addView(clockFrame, LinearLayout.LayoutParams(-1, dp(120)).apply { bottomMargin = dp(12) })
+        // EVOLVER (layout fix): the timer frame height comes from the
+        // active theme's layout — tall in the sparse vertical theme,
+        // compact in the dense theme.
+        val timerFrameH = when (AgentTheme.layout.kind) {
+            AgentTheme.ThemeLayoutKind.VERTICAL -> 140
+            AgentTheme.ThemeLayoutKind.DENSE -> 96
+            else -> 120
+        }
+        screenBody.addView(clockFrame, LinearLayout.LayoutParams(-1, dp(timerFrameH)).apply { bottomMargin = dp(AgentTheme.layout.sectionGapDp) })
         val timerBarBox = borderedPanel()
         timerBarView = StripedBarView(this).apply { setValue(100) }
         timerBarBox.addView(timerBarView, LinearLayout.LayoutParams(-1, dp(18)))
@@ -3134,31 +3417,41 @@ class NervActivity : Activity() {
             gravity = Gravity.CENTER
         }
         screenBody.addView(timerEmptyView, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        timerButtonView = shellButton("START") {
+        // EVOLVER (layout fix): the three timer buttons arrange by
+        // theme like every other button row.
+        val startButton = shellButton("START") {
             val entry = selectedTimer() ?: return@shellButton
             val now = System.currentTimeMillis()
             if (entry.running) timerStore.stop(entry.id, now) else timerStore.start(entry.id, now)
             showScreen("timer")
         }
-        row.addView(timerButtonView, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
-        row.addView(shellButton("RESET") {
+        timerButtonView = startButton
+        val resetButton = shellButton("RESET") {
             val entry = selectedTimer() ?: return@shellButton
             timerStore.reset(entry.id, System.currentTimeMillis())
             showScreen("timer")
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5); marginEnd = dp(5) })
-        row.addView(shellButton("+1:00") {
+        }
+        val plusMinuteButton = shellButton("+1:00") {
             val entry = selectedTimer() ?: return@shellButton
             timerStore.addMinute(entry.id, System.currentTimeMillis())
             updateTimerViews()
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
-        screenBody.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+        }
+        screenBody.addView(layoutButtonRow(startButton, resetButton, plusMinuteButton), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
 
         screenBody.addView(monoText("NEW TIMER — TAP A PRESET", 12f, colorAccentSecondary()).apply {
             setPadding(0, 0, 0, dp(6))
         })
 
-        TimerStore.PRESETS.chunked(3).forEach { chunk ->
+        // EVOLVER (layout fix): presets chunk by theme — 3 in a row
+        // (amber, as today), 4 packed (borg), one per row (cyberpunk,
+        // flesh), pairs (mono).
+        val presetCols = when (AgentTheme.layout.kind) {
+            AgentTheme.ThemeLayoutKind.DENSE -> 4
+            AgentTheme.ThemeLayoutKind.GRID -> 2
+            AgentTheme.ThemeLayoutKind.VERTICAL, AgentTheme.ThemeLayoutKind.FLOW -> 1
+            else -> 3
+        }
+        TimerStore.PRESETS.chunked(presetCols).forEach { chunk ->
             val presets = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             chunk.forEachIndexed { index, preset ->
                 presets.addView(shellButton(preset.label) {
@@ -3218,7 +3511,7 @@ class NervActivity : Activity() {
             val bar = StripedBarView(this).apply { setValue(100) }
             timerRow.addView(bar, LinearLayout.LayoutParams(-1, dp(10)).apply { topMargin = dp(6) })
             timerRowViews[entry.id] = Triple(valueView, bar, toggle)
-            screenBody.addView(timerRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            screenBody.addView(timerRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.itemGapDp) })
         }
         updateTimerViews()
     }
@@ -3313,7 +3606,17 @@ class NervActivity : Activity() {
                 else -> false
             }
         }
-        screenBody.addView(globe, LinearLayout.LayoutParams(-1, dp(360)).apply { bottomMargin = dp(10) })
+        // EVOLVER (layout fix): globe height comes from the theme's
+        // layout — smaller in the sparse vertical and dense themes so
+        // the readouts get room. The globe itself is never hidden: it
+        // is the map.
+        val globeH = when (AgentTheme.layout.kind) {
+            AgentTheme.ThemeLayoutKind.VERTICAL -> 300
+            AgentTheme.ThemeLayoutKind.DENSE -> 280
+            AgentTheme.ThemeLayoutKind.GRID -> 320
+            else -> 360
+        }
+        screenBody.addView(globe, LinearLayout.LayoutParams(-1, dp(globeH)).apply { bottomMargin = dp(10) })
         val box = borderedPanel()
         val coordRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         coordRow.addView(monoText("LAT / LON", 13f, colorAccent()), LinearLayout.LayoutParams(0, -2, 1f))
@@ -3337,24 +3640,27 @@ class NervActivity : Activity() {
         box.addView(rotRow)
         screenBody.addView(box)
 
-        val buttonRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        buttonRow.addView(shellButton("CENTRE ON ME") {
+        // EVOLVER (layout fix): the map buttons arrange by theme like
+        // every other button row.
+        val centreButton = shellButton("CENTRE ON ME") {
             val fix = mapFix
             if (fix != null) {
                 mapGlobe?.setYouMarker(fix.lat, fix.lon)
                 mapGlobe?.centreOn(fix.lon)
                 updateMapViews()
             }
-        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-        if (!locationTracker.hasPermission()) {
-            buttonRow.addView(shellButton("ENABLE LOCATION") {
+        }
+        val mapButtons = if (!locationTracker.hasPermission()) {
+            listOf(centreButton, shellButton("ENABLE LOCATION") {
                 requestPermissions(
                     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
                     locationRequestCode,
                 )
-            }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6) })
+            })
+        } else {
+            listOf(centreButton)
         }
-        screenBody.addView(buttonRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+        screenBody.addView(layoutButtonRow(*mapButtons.toTypedArray()), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
         screenBody.addView(monoText("Location stays on this phone — NERV never sends it anywhere. GPS runs only while MAP is open.", 11f, colorAccentSecondary()), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(12) })
         updateMapViews()
         startMapLocation()
@@ -3393,11 +3699,14 @@ class NervActivity : Activity() {
         val panel = borderedPanel()
         panel.addView(boxHeading("COLOR SCHEME"))
 
-        val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        palettes.forEachIndexed { index, (name, _) ->
-
+        // EVOLVER (layout fix): the five theme buttons arrange by the
+        // active theme's layout — one row (amber, borg), a single column
+        // (cyberpunk, flesh), a grid (mono). The picker itself shows the
+        // layout difference the moment a theme is picked.
+        val themeButtons = palettes.map { theme ->
+            val name = theme.name
             val selected = name == palette
-            val button = if (selected) {
+            if (selected) {
                 shellButtonOn(name.uppercase(Locale.ROOT)) {
                     palette = name
                     displaySettings.palette = name
@@ -3412,11 +3721,8 @@ class NervActivity : Activity() {
                     showScreen("setup")
                 }
             }
-            themeRow.addView(button, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                marginEnd = if (index == palettes.size - 1) 0 else dp(4)
-            })
         }
-        panel.addView(themeRow)
+        panel.addView(layoutButtonRow(*themeButtons.toTypedArray()))
         screenBody.addView(panel)
 
         val customBox = borderedPanel()
@@ -3426,20 +3732,18 @@ class NervActivity : Activity() {
             if (customAccent == 0) "Using the theme's own accent colour."
             else "Custom accent: $customName — the theme's second colour and dim stay as they are.",
             12f, colorAccent()))
-        val customRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        DisplaySettings.CUSTOM_ACCENTS.forEachIndexed { index, (name, color) ->
+        // EVOLVER (layout fix): the accent chips arrange by theme like
+        // every other button row.
+        val customButtons = DisplaySettings.CUSTOM_ACCENTS.map { (name, color) ->
             val label = if (customAccent == color) "● $name" else name
-            customRow.addView(shellButton(label) {
+            shellButton(label) {
                 customAccent = color
                 displaySettings.customAccent = color
                 applyTheme()
                 showScreen("setup")
-            }, LinearLayout.LayoutParams(0, -2, 1f).apply {
-
-                marginEnd = if (index == DisplaySettings.CUSTOM_ACCENTS.size - 1) 0 else dp(4)
-            })
+            }
         }
-        customBox.addView(customRow)
+        customBox.addView(layoutButtonRow(*customButtons.toTypedArray()))
         customBox.addView(shellButton("THEME COLOUR — USE THE THEME'S OWN ACCENT") {
             customAccent = 0
             displaySettings.customAccent = 0
@@ -3684,13 +3988,16 @@ class NervActivity : Activity() {
                 LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(4) })
             taughtBox.addView(row)
             taughtBox.addView(monoText(
-                "TAUGHT — " + skill.instruction +
+                // EVOLVER: auto-saved skills show an AUTO tag instead of
+                // TAUGHT, plus how often MAGI has used each skill.
+                (if (skill.origin == TaughtSkillStore.ORIGIN_AUTO) "AUTO" else "TAUGHT") + " — " + skill.instruction +
                 (if (skill.tools.isEmpty()) "" else " [tools: ${skill.tools.joinToString(", ")}]") +
-                (if (skill.taughtAt.isBlank()) "" else " · ${skill.taughtAt}"),
+                (if (skill.taughtAt.isBlank()) "" else " · ${skill.taughtAt}") +
+                (if (skill.useCount == 0) " · never used yet" else " · used ${skill.useCount} times"),
                 10f, colorAccentSecondary()))
         }
         taughtBox.addView(shellButton("TEACH MAGI") { showTeachDialog() })
-        taughtBox.addView(monoText("A taught skill is an instruction MAGI follows when it is loaded — it never adds new code, never downloads anything, never holds a secret. Teach in CHAT with TEACH MAGI, or type \"teach MAGI…\" and CHAT will offer to save it. A skill that names a tool still needs that tool's pack loaded to run it.", 11f, colorAccentSecondary()))
+        taughtBox.addView(monoText("A taught skill is an instruction MAGI follows when it is loaded — it never adds new code, never downloads anything, never holds a secret. Teach in CHAT with TEACH MAGI, or type \"teach MAGI…\" and CHAT will offer to save it. A skill that names a tool still needs that tool's pack loaded to run it. MAGI also saves a skill by itself after a run where every step worked — those show with an AUTO tag, and you can unload or delete them the same way. It never saves a phone-control step, and never stores a secret, a number or an address.", 11f, colorAccentSecondary()))
         screenBody.addView(taughtBox)
 
         val agentBox = borderedPanel()
@@ -5534,8 +5841,14 @@ class NervActivity : Activity() {
         phoneFrame.removeAllViews()
         val lockFrame = FrameLayout(this).apply { setBackgroundColor(AgentTheme.background) }
         installPixelCanvas(lockFrame)
-        val globe = GlobeView(this).apply { alpha = 0.55f }
-        lockFrame.addView(globe, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+        // EVOLVER: the lock screen's decorative globe is hidden in
+        // minimal themes (cyberpunk, mono) — the lock itself (PIN entry,
+        // MAGI AUTHENTICATION text) is untouched, so nothing functional
+        // is lost. The MAP screen globe is NOT hidden: it is the map.
+        if (!AgentTheme.minimal) {
+            val globe = GlobeView(this).apply { alpha = 0.55f }
+            lockFrame.addView(globe, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+        }
         val lockRoot = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -5554,23 +5867,40 @@ class NervActivity : Activity() {
         lockRoot.addView(monoText(SimpleDateFormat("EEE MMM dd yyyy", Locale.getDefault()).format(Date()).uppercase(Locale.getDefault()), 11f, colorAccentSecondary()).apply { gravity = Gravity.CENTER })
         lockNodeValueViews.clear()
         lockNodeBoxViews.clear()
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        listOf("MELCHIOR·1", "BALTHASAR·2", "CASPER·3").forEach { node ->
-            val nodeBox = LinearLayout(this).apply {
+        // EVOLVER (layout fix): the three lock node boxes arrange by
+        // theme — a row (amber, borg, mono), a single vertical column
+        // (cyberpunk), a staggered column (flesh). Same three boxes.
+        val lockLayout = AgentTheme.layout
+        val nodeBoxes = listOf("MELCHIOR·1", "BALTHASAR·2", "CASPER·3").map { node ->
+            LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 setPadding(dp(8), dp(8), dp(8), dp(8))
                 background = GradientDrawable().apply { setColor(AgentTheme.background); setStroke(dp(2), colorAccent()) }
+                contentDescription = "$node vote — waiting"
+                addView(monoText(node, 9f, AgentTheme.signal).apply { gravity = Gravity.CENTER })
+                val valueView = minchoText("---", 20f, AgentTheme.muted).apply { gravity = Gravity.CENTER }
+                addView(valueView)
+                lockNodeValueViews.add(valueView)
+                lockNodeBoxViews.add(this)
             }
-
-            nodeBox.contentDescription = "$node vote — waiting"
-            nodeBox.addView(monoText(node, 9f, AgentTheme.signal).apply { gravity = Gravity.CENTER })
-
-            val valueView = minchoText("---", 20f, AgentTheme.muted).apply { gravity = Gravity.CENTER }
-            nodeBox.addView(valueView)
-            lockNodeValueViews.add(valueView)
-            lockNodeBoxViews.add(nodeBox)
-            row.addView(nodeBox, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
+        }
+        val row = LinearLayout(this).apply {
+            orientation = if (lockLayout.kind == AgentTheme.ThemeLayoutKind.VERTICAL || lockLayout.kind == AgentTheme.ThemeLayoutKind.FLOW) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        nodeBoxes.forEachIndexed { index, nodeBox ->
+            when (lockLayout.kind) {
+                AgentTheme.ThemeLayoutKind.VERTICAL -> row.addView(nodeBox, LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = if (index == 0) 0 else dp(lockLayout.itemGapDp)
+                })
+                AgentTheme.ThemeLayoutKind.FLOW -> row.addView(nodeBox, LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = if (index == 0) 0 else dp(lockLayout.itemGapDp)
+                    val s = dp(lockLayout.staggerDp)
+                    if (index % 2 == 0) marginEnd = s else marginStart = s
+                })
+                else -> row.addView(nodeBox, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
+            }
         }
         lockRoot.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12); bottomMargin = dp(12) })
 
@@ -5584,6 +5914,13 @@ class NervActivity : Activity() {
         lockMagiView = monoText(magiStatusLine(), 12f, AgentTheme.signal).apply { gravity = Gravity.CENTER }
         lockWidgets.addView(lockMagiView)
         lockRoot.addView(lockWidgets, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+
+        // EVOLVER (layout fix): borg shows an extra assimilation status
+        // line on the lock screen — part of the dense layout.
+        if (AgentTheme.layout.showExtraReadouts) {
+            lockRoot.addView(monoText("ASSIMILATION — SYNC $syncRatio%", 11f, colorAccent()).apply { gravity = Gravity.CENTER },
+                LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        }
 
         val needsPin = lockSecurity.hasPin()
         if (needsPin) {
@@ -5857,16 +6194,49 @@ class NervActivity : Activity() {
     }
 
     private fun applyTheme() {
-        val colors = palettes.first { it.first == palette }.second
+        // EVOLVER (five themes): the palette lookup falls back to amber
+        // when the saved name is not in the list — a phone that still had
+        // "cyan", "alert" or "eva01" saved must not crash here, and the
+        // saved value is reset so the picker shows a selection.
+        val theme = palettes.firstOrNull { it.name == palette } ?: palettes[0]
+        if (theme.name != palette) {
+            palette = theme.name
+            displaySettings.palette = theme.name
+        }
 
-        AgentTheme.accent = if (customAccent != 0) customAccent else colors[0]
-
-        AgentTheme.accentSecondary = if (highContrast) AgentTheme.accent else colors[1]
-        AgentTheme.muted = if (highContrast) colors[1] else colors[2]
+        AgentTheme.accent = if (customAccent != 0) customAccent else theme.accent
+        AgentTheme.accentSecondary = if (highContrast) AgentTheme.accent else theme.accentSecondary
+        AgentTheme.muted = if (highContrast) theme.accentSecondary else theme.muted
+        AgentTheme.text = theme.text
+        AgentTheme.background = theme.background
+        AgentTheme.surface = theme.background
+        // Raised is the background lifted by a touch — for amber that
+        // reproduces the old 0xff050200 exactly.
+        AgentTheme.raised = liftColor(theme.background, 5)
+        AgentTheme.signal = theme.signal
+        AgentTheme.green = theme.green
+        AgentTheme.danger = theme.danger
+        AgentTheme.error = theme.danger
         AgentTheme.stroke = AgentTheme.accent
+        AgentTheme.cornerRadiusDp = theme.cornerRadiusDp
+        AgentTheme.strokeWidthDp = theme.strokeWidthDp
+        AgentTheme.fillAlpha = theme.fillAlpha
+        AgentTheme.chamferDp = theme.chamferDp
+        AgentTheme.animFactor = theme.animFactor
+        AgentTheme.minimal = theme.minimal
+        // EVOLVER (layout fix): the active theme's screen arrangement —
+        // every screen reads AgentTheme.layout when building its views,
+        // so each theme lays its screens out differently.
+        AgentTheme.layout = theme.layout
+        // EVOLVER (fonts): the active theme's font configuration —
+        // every text helper reads AgentTheme.font.
+        AgentTheme.font = theme.font
+
         phoneFrame.background = frameDrawable()
         glowFrame.background = GradientDrawable().apply {
-            setColor(Color.parseColor("#050200"))
+            // EVOLVER: the glow fill derives from the active accent (low
+            // alpha) instead of the hardcoded orange-black "#050200".
+            setColor(AgentTheme.rippleTint(0x14))
             setStroke(dp(2), AgentTheme.muted)
             cornerRadius = dp(40).toFloat()
         }
@@ -5880,6 +6250,20 @@ class NervActivity : Activity() {
         revealPixelCanvas(root)
         pixelCanvasView?.invalidate()
         if (::headerStatus.isInitialized) updateHeaderStatus()
+        // EVOLVER: the theme's animation factor multiplies the
+        // battery-saver scale, so switching themes updates the animation
+        // feel immediately. Reduce-motion and battery saver still win —
+        // applyBatterySaver only sets speedScale, never the reduce flags.
+        applyBatterySaver()
+    }
+
+    // EVOLVER: lift each RGB channel of a colour by a small amount,
+    // clamped at 255. Used for the "raised" surface tone.
+    private fun liftColor(color: Int, amount: Int): Int {
+        val r = minOf(255, Color.red(color) + amount)
+        val g = minOf(255, Color.green(color) + amount)
+        val b = minOf(255, Color.blue(color) + amount)
+        return Color.rgb(r, g, b)
     }
 
     private fun applyReduceMotion() {
@@ -5892,7 +6276,12 @@ class NervActivity : Activity() {
     }
 
     private fun applyBatterySaver() {
-        val scale = batterySaver.animationScale()
+        // EVOLVER: the theme's animation factor multiplies the
+        // battery-saver scale (cyberpunk 1.25x feels fast, Borg 0.6x feels
+        // slow and relentless). It never overrides reduce-motion or
+        // battery saver — those still gate animation separately, and a
+        // theme can never force animations on when they are set.
+        val scale = batterySaver.animationScale() * AgentTheme.animFactor
         GlobeView.speedScale = scale
         PixelCanvasView.speedScale = scale
         pixelCanvasView?.invalidate()
@@ -5916,7 +6305,10 @@ class NervActivity : Activity() {
     private fun title(glyph: String, english: String, subtitle: String): View {
         val band = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) }
+            // EVOLVER (layout fix): the gap below a section header comes
+            // from the active theme's layout — sparse themes get more
+            // room, dense themes pack tighter.
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(AgentTheme.layout.sectionGapDp) }
         }
         band.addView(doubleRule())
         val row = LinearLayout(this).apply {
@@ -5962,29 +6354,131 @@ class NervActivity : Activity() {
                 cornerRadius = 0f
             }
             setPadding(dp(2), dp(6), dp(2), dp(6))
-            minimumHeight = 0
+            // EVOLVER (layout fix): mode button height comes from the
+            // active theme's layout — a minimum, never fixed, so the
+            // button still grows if the text size setting is bigger.
+            minimumHeight = dp(AgentTheme.layout.buttonHeightDp)
             setOnClickListener { playTapBeep(); action(this) }
         }
 
     private fun borderedPanel(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(10), dp(8), dp(10), dp(8))
-        background = GradientDrawable().apply { setColor(AgentTheme.background); setStroke(dp(2), colorAccent()) }
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) }
+        // EVOLVER (layout fix): padding and the gap below the panel come
+        // from the active theme's layout — sparse themes get more
+        // breathing room, dense themes pack tighter. The shape follows
+        // the theme (chamfer or corner radius) through AgentTheme.panel().
+        val layout = AgentTheme.layout
+        setPadding(dp(layout.panelPaddingDp), dp(layout.panelPaddingDp), dp(layout.panelPaddingDp), dp(layout.panelPaddingDp))
+        background = AgentTheme.panel(this@NervActivity, AgentTheme.background, colorAccent())
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(layout.sectionGapDp) }
     }
 
+    // EVOLVER (layout fix): in the sparse vertical theme the label sits
+    // above the button instead of beside it — the whole SETUP screen
+    // reads as a single column.
     private fun toggleRow(label: String, state: String, action: (Button) -> Unit): LinearLayout =
         LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            val vertical = AgentTheme.layout.kind == AgentTheme.ThemeLayoutKind.VERTICAL
+            orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            if (!vertical) gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) }
-            addView(monoText(label, 13f, colorAccent()), LinearLayout.LayoutParams(0, -2, 1f))
-            addView(shellButton(state, action), LinearLayout.LayoutParams(dp(70), -2))
+            addView(monoText(label, 13f, colorAccent()), LinearLayout.LayoutParams(if (vertical) -1 else 0, -2, if (vertical) 0f else 1f))
+            addView(shellButton(state, action), LinearLayout.LayoutParams(if (vertical) -1 else dp(70), -2).apply {
+                if (vertical) topMargin = dp(AgentTheme.layout.itemGapDp)
+            })
         }
 
     private fun boxHeading(value: String): TextView = monoText(value, 13f, colorAccentSecondary()).apply {
         letterSpacing = 0.08f
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
+    }
+
+    // EVOLVER — per-theme layout helpers (25 Nov 2026, layout fix).
+    // Every screen arranges itself through these, so each theme lays
+    // its screens out differently from the same code — no screen is
+    // written five times. Same buttons, same features, same navigation
+    // in every theme; only the arrangement changes.
+    //
+    // layoutButtonRow: arranges buttons by the active theme's layout.
+    // STANDARD: one horizontal row (as today). VERTICAL: single column
+    // of tall buttons. DENSE: one tight horizontal row. GRID: a strict
+    // grid of buttonColumns columns. FLOW: single column with alternate
+    // rows offset sideways (stagger), so no straight grid.
+    private fun layoutButtonRow(vararg buttons: Button): View {
+        val layout = AgentTheme.layout
+        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        if (layout.buttonColumns <= 1) {
+            buttons.forEachIndexed { index, button ->
+                val params = LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = if (index == 0) 0 else dp(layout.itemGapDp)
+                    if (layout.kind == AgentTheme.ThemeLayoutKind.FLOW) {
+                        val s = dp(layout.staggerDp)
+                        if (index % 2 == 0) marginEnd = s else marginStart = s
+                    }
+                }
+                container.addView(button, params)
+            }
+        } else {
+            buttons.toList().chunked(layout.buttonColumns).forEachIndexed { rowIndex, chunk ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                chunk.forEachIndexed { index, button ->
+                    row.addView(button, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                        marginStart = if (index == 0) 0 else dp(layout.itemGapDp)
+                    })
+                }
+                container.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = if (rowIndex == 0) 0 else dp(layout.itemGapDp)
+                })
+            }
+        }
+        return container
+    }
+
+    // Home tile grid columns by theme: VERTICAL is a single column of
+    // full-width tiles, GRID is a strict 2-column grid, DENSE packs 4
+    // across, FLOW is 2 columns, STANDARD keeps the old dual-pane rule.
+    private fun layoutTileColumns(): Int {
+        val cols = AgentTheme.layout.tileColumns
+        return if (cols > 0) cols else if (isDualPane()) 4 else 2
+    }
+
+    // Borg-only extra readouts: progress bars built from state that
+    // already exists on this phone (sync ratio + toxicity values).
+    // Display only — no new data, no new functionality. Shown on HOME
+    // (and the MAGI node strip below) only when the active layout asks
+    // for extra readouts.
+    private fun layoutBorgReadoutPanel(): LinearLayout {
+        val panel = borderedPanel()
+        panel.addView(boxHeading("SYSTEM READOUT — ASSIMILATION"))
+        fun readoutRow(label: String, value: Int) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(monoText(label, 11f, colorAccent()), LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(StripedBarView(this).apply { setValue(value) }, LinearLayout.LayoutParams(dp(120), dp(14)))
+            row.addView(monoText("$value%", 11f, colorAccent()), LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
+            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(4) })
+        }
+        readoutRow("SYNC RATIO", syncRatio)
+        readoutRow("TOX 00 FIRST", toxValues.getOrElse(0) { 0 })
+        readoutRow("TOX 01 THIRD", toxValues.getOrElse(1) { 0 })
+        readoutRow("TOX 02 SECOND", toxValues.getOrElse(2) { 0 })
+        return panel
+    }
+
+    // Borg-only per-node link bars on the MAGI screen: each node's bar
+    // reflects its live vote (100 = approved, 12 = denied — the same
+    // 12%/100% convention the ARMOR plates use). Display only.
+    private fun layoutNodeReadoutPanel(): LinearLayout {
+        val panel = borderedPanel()
+        panel.addView(boxHeading("NODE LINK"))
+        listOf("MELCHIOR·1" to 0, "BALTHASAR·2" to 1, "CASPER·3" to 2).forEach { (name, voteIndex) ->
+            val value = if (magiEngine.votes[voteIndex] == 1) 100 else 12
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(monoText(name, 11f, colorAccent()), LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(StripedBarView(this).apply { setValue(value) }, LinearLayout.LayoutParams(dp(120), dp(14)))
+            row.addView(monoText("$value%", 11f, colorAccent()), LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
+            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4); bottomMargin = dp(4) })
+        }
+        return panel
     }
 
     private fun htmlInputStyle(input: EditText) {
@@ -5998,24 +6492,31 @@ class NervActivity : Activity() {
 
     private fun shellButton(textValue: String, action: (Button) -> Unit): Button =
         Button(this).apply {
-            text = textValue
+            // EVOLVER (fonts): shell buttons use the theme's body face
+            // and caps when the theme forces them. Amber's body face is
+            // the mono font with no caps — exactly as before this change.
+            text = AgentTheme.capsText(textValue)
 
             contentDescription = textValue
-            isAllCaps = false
+            isAllCaps = AgentTheme.font.forceCaps
 
             textSize = 12f * textScale()
-            typeface = AgentTheme.monoTypeface(this@NervActivity)
+            typeface = AgentTheme.bodyTypeface(this@NervActivity)
+            letterSpacing = AgentTheme.font.bodySpacingEm
             setTextColor(colorAccent())
+            // EVOLVER: the ripple tint, stroke width and corner shape all
+            // follow the active theme now (was a hardcoded orange ripple
+            // "#33ff9a1a" and a fixed 2dp stroke with square corners).
             background = RippleDrawable(
-                ColorStateList.valueOf(Color.parseColor("#33ff9a1a")),
-                GradientDrawable().apply {
-                    setColor(AgentTheme.background)
-                    setStroke(dp(2), colorAccent())
-                },
+                ColorStateList.valueOf(AgentTheme.rippleTint(0x33)),
+                AgentTheme.panel(this@NervActivity, AgentTheme.background, colorAccent()),
                 null
             )
             setPadding(dp(2), dp(6), dp(2), dp(6))
-            minimumHeight = 0
+            // EVOLVER (layout fix): button height comes from the active
+            // theme's layout — tall in the sparse vertical theme, compact
+            // in the dense theme.
+            minimumHeight = dp(AgentTheme.layout.buttonHeightDp)
             minimumWidth = 0
             setOnClickListener { playTapBeep(); action(this) }
         }
@@ -6023,12 +6524,13 @@ class NervActivity : Activity() {
     private fun shellButtonOn(textValue: String, action: (Button) -> Unit): Button =
         shellButton(textValue, action).apply {
             setTextColor(AgentTheme.background)
+            // EVOLVER: ripple and shape follow the theme (was a hardcoded
+            // red ripple "#33ff2a1a"). The selected state is the danger
+            // colour — white in the mono theme, so a selected button reads
+            // as a white block on black.
             background = RippleDrawable(
-                ColorStateList.valueOf(Color.parseColor("#33ff2a1a")),
-                GradientDrawable().apply {
-                    setColor(colorDanger())
-                    setStroke(dp(2), colorDanger())
-                },
+                ColorStateList.valueOf(AgentTheme.rippleTint(0x33)),
+                AgentTheme.panel(this@NervActivity, colorDanger(), colorDanger()),
                 null
             )
         }
@@ -6036,12 +6538,11 @@ class NervActivity : Activity() {
     private fun shellButtonOk(textValue: String, action: (Button) -> Unit): Button =
         shellButton(textValue, action).apply {
             setTextColor(AgentTheme.background)
+            // EVOLVER: ripple and shape follow the theme (was a hardcoded
+            // teal ripple "#336fffe0" — the old fixed signal colour).
             background = RippleDrawable(
-                ColorStateList.valueOf(Color.parseColor("#336fffe0")),
-                GradientDrawable().apply {
-                    setColor(AgentTheme.signal)
-                    setStroke(dp(2), AgentTheme.signal)
-                },
+                ColorStateList.valueOf(AgentTheme.rippleTint(0x33)),
+                AgentTheme.panel(this@NervActivity, AgentTheme.signal, AgentTheme.signal),
                 null
             )
         }
@@ -6051,15 +6552,30 @@ class NervActivity : Activity() {
 
         textSize = size * textScale()
         setTextColor(color)
-        typeface = AgentTheme.monoTypeface(this@NervActivity)
+        // EVOLVER (fonts): body face of the active theme. Japanese
+        // always uses mincho, in every theme. Body text is never forced
+        // to caps — it can carry user content (notes, chat, timer
+        // labels). Amber's body face is the mono font, exactly as
+        // before this change.
+        val japanese = AgentTheme.containsJapanese(value)
+        typeface = if (japanese) AgentTheme.minchoTypeface(this@NervActivity)
+            else AgentTheme.bodyTypeface(this@NervActivity)
+        letterSpacing = if (japanese) 0f else AgentTheme.font.bodySpacingEm
         includeFontPadding = false
     }
 
     private fun minchoText(value: String, size: Float, color: Int): TextView = TextView(this).apply {
-        text = value
+        // EVOLVER (fonts): display face of the active theme — caps,
+        // spacing and style from the palette. Japanese always uses
+        // mincho, in every theme. Amber's display face is mincho,
+        // exactly as before this change.
+        text = AgentTheme.capsText(value)
         textSize = size
         setTextColor(color)
-        typeface = AgentTheme.minchoTypeface(this@NervActivity)
+        val japanese = AgentTheme.containsJapanese(value)
+        typeface = if (japanese) AgentTheme.minchoTypeface(this@NervActivity)
+            else AgentTheme.displayTypeface(this@NervActivity)
+        letterSpacing = if (japanese) 0f else AgentTheme.font.displaySpacingEm
         includeFontPadding = false
     }
 

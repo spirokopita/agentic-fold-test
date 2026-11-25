@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- MAGI EVOLVER — CYBERDECK pack, 25 Nov 2026. Two permissions added,
+         both NORMAL (install-time) — granted automatically, no user prompt,
+         no new runtime permission. They are required by Android for any
+         app that reads WiFi state or triggers a WiFi scan; without them
+         the cyberdeck tools cannot see the connected network at all.
+         WiFi scan RESULTS additionally need the location permission the
+         app already has (ACCESS_FINE_LOCATION). Nothing else changed. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

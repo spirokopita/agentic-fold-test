@@ -1,5 +1,23 @@
 package com.agentfold.app.nerv
 
+// MAGI EVOLVER — Stage 1 (self-save) + phyphox sensors + record/scan + cyberdeck, 25 Nov 2026.
+// What changed in this file and why:
+// - New built-in pack SENSORS: phyphox_list + phyphox_read + phyphox_record
+//   + phyphox_scan. List the 40 bundled experiments, take one live reading
+//   for one experiment, record the sensors once, and scan the recording.
+//   Recordings stay on-device in filesDir and are deleted after the scan.
+//   No new permission, enabled by default like the other read-only packs
+//   (PORTS, FOLDERS).
+// - New built-in pack CYBERDECK: white-hat network testing for Spiros's
+//   OWN private network only — wifi_scan, lan_scan, port_scan,
+//   wifi_password_check, router_check, wps_check. Every tool works only
+//   on the WiFi network the phone is currently connected to; nothing
+//   targets another network and nothing attempts a login. The password
+//   check is offline only and never stores or sends the password.
+//   Enabled by default, like ports/folders.
+// Nothing else changed: same Pack data class, same load/unload rules,
+// same 20 custom packs cap.
+
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
@@ -42,6 +60,21 @@ class PackManager(context: Context) {
             listOf("port_test", "port_add"), implemented = true, enabled = true),
         Pack("folders", "FOLDERS", "Browse and tidy the app's own files (reports, notes, chat). Never outside filesDir, delete needs confirm.",
             listOf("folder_list", "folder_create", "folder_rename", "folder_delete"), implemented = true, enabled = true),
+        // EVOLVER: phyphox sensor lab. List the bundled experiments, take
+        // one live reading for one experiment, record the sensors once and
+        // scan the recording. Recordings stay on-device and are deleted
+        // after the scan. No new permission — the sensors used need none.
+        // Experiments that need the microphone, camera, GPS or Bluetooth
+        // cannot be read by a tool call; the tool says so.
+        Pack("sensors", "SENSORS", "phyphox experiments — list the 40 bundled experiments, read the phone's live sensor values for one, record the sensors once and scan the recording. Recordings stay on-device and are deleted after the scan; no new permission.",
+            listOf("phyphox_list", "phyphox_read", "phyphox_record", "phyphox_scan"), implemented = true, enabled = true),
+        // EVOLVER: CYBERDECK / QUICKHACKS — white-hat testing of Spiros's
+        // OWN private network only. Every tool works only on the WiFi
+        // network the phone is currently connected to; nothing targets
+        // another network, nothing attempts a login, and the password
+        // check is offline only — it never stores or sends the password.
+        Pack("cyberdeck", "CYBERDECK", "White-hat network testing for your own private network only — scan nearby WiFi, list devices and open ports on the network you are connected to, check your router and your WiFi password strength. Never targets another network, never tries a login, never sends a password anywhere.",
+            listOf("wifi_scan", "lan_scan", "port_scan", "wifi_password_check", "router_check", "wps_check"), implemented = true, enabled = true),
         Pack("calendar", "CALENDAR", "Read the phone's calendar (needs permission). Adding an event always needs Spiros's approval in a dialog — it is never a tool.",
             listOf("calendar"), implemented = true, enabled = true),
         Pack("contacts", "CONTACTS", "Look up a contact's number before a call or message (needs permission). Read-only; a lookup result is never saved or sent anywhere.",
